@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+html {
+  --bg: #0D1117;
+  --surface: #161B22;
+  /* Levemente mais claro que o bg */
+  --elevated: #1C2128;
+  /* Cards em destaque, modais, dropdowns */
+  --border: #30363D;
+  --muted: #8B949E;
+  --text: #F0F6FC;
+
+  --avocado: #84CC16;
+  --avocado-light: #A3E635;
+  --avocado-dark: #65A30D;
+
+  --danger: #F85149;
+  --success: #3FB950;
+  --warning: #D29922;
+
+  color-scheme: dark;
+}
+
+/* ── Light Theme ─────────────────────────────────────────────── */
+html.light {
+  --bg: #F9FAFB;
+  --surface: #FFFFFF;
+  --elevated: #F0F2F5;
+  /* Cinza super claro */
+  --border: #E5E7EB;
+  --muted: #6B7280;
+  --text: #1A1D23;
+
+  --avocado: #65A30D;
+  --avocado-light: #84CC16;
+  --avocado-dark: #4D7C0F;
+
+  --danger: #DC2626;
+  --success: #16A34A;
+  --warning: #D97706;
+
+  color-scheme: light;
+}
+
+html.light body {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+main {
+  animation: page-enter 0.4s ease-out forwards;
+}
+
+@keyframes page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

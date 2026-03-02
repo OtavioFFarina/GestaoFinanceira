@@ -1,0 +1,20 @@
+Como rodar:
+
+BACK-END:
+
+# Acessar o diretório do backend
+cd /var/www/html/GestaoFinanceira/backend
+
+# Ativar o ambiente venv (caso não esteja ativo)
+source /var/www/html/GestaoFinanceira/.venv/bin/activate
+
+# Subir o servidor do backend (0.0.0.0 aceita localhost E acesso pela rede)
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+FRONT-END:
+
+# Acessar o diretório do frontend
+cd /var/www/html/GestaoFinanceira/frontend
+
+# Subir o servidor do frontend
+npm run dev

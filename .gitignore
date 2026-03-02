@@ -1,0 +1,27 @@
+# =========================
+# SEGURANÇA (NUNCA SUBIR)
+# =========================
+.env
+.env.local
+.env.*
+*.pem
+
+# =========================
+# Frontend (Next.js / Node)
+# =========================
+node_modules/
+.next/
+out/
+build/
+.DS_Store
+
+# =========================
+# Backend (Python / FastAPI)
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
