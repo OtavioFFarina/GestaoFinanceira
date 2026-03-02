@@ -3,11 +3,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas.auth import LoginRequest, LoginResponse, LogoutRequest
+from app.schemas.auth import LoginRequest, LoginResponse, LogoutRequest, RegisterRequest
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 _svc = AuthService()
+
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> dict:
+    try:
+        _svc.register(db, payload)
+        return {"message": "Usuário criado com sucesso"}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 
 
 @router.post("/login", response_model=LoginResponse)

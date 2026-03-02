@@ -11,10 +11,37 @@ import bcrypt
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.schemas.auth import LoginRequest, LoginResponse, PerfilResponse
+from app.schemas.auth import LoginRequest, LoginResponse, PerfilResponse, RegisterRequest
 
 
 class AuthService:
+
+    def register(self, db: Session, payload: RegisterRequest) -> None:
+        # 1. Check if email already exists
+        exists = db.execute(
+            text("SELECT id FROM usuarios WHERE email = :email"),
+            {"email": payload.email}
+        ).fetchone()
+        
+        if exists:
+            raise ValueError("Este e-mail já está em uso.")
+
+        # 2. Hash password
+        senha_hash = self.hash_password(payload.senha)
+
+        # 3. Create user
+        db.execute(
+            text("""
+                INSERT INTO usuarios (nome, email, senha_hash)
+                VALUES (:nome, :email, :senha_hash)
+            """),
+            {
+                "nome": payload.nome.strip(),
+                "email": payload.email.lower().strip(),
+                "senha_hash": senha_hash
+            }
+        )
+        db.commit()
 
     def login(self, db: Session, payload: LoginRequest) -> LoginResponse:
         # 1. Find user by email
