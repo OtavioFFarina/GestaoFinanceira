@@ -53,19 +53,23 @@ export function useDashboard(usuarioId: string, ano: number, mes: number) {
         setError(null);
 
         try {
-            const [dashRes, catRes] = await Promise.all([
-                fetch(`${API_BASE}/dashboard/${usuarioId}/${ano}/${mes}`),
-                fetch(`${API_BASE}/categorias?tipo=saida`),
-            ]);
-
+            // Fetch dashboard data (always returns 200 with zeros if month is empty)
+            const dashRes = await fetch(`${API_BASE}/dashboard/${usuarioId}/${ano}/${mes}`);
             if (!dashRes.ok) throw new Error(`Erro HTTP ${dashRes.status} ao buscar dashboard`);
-            if (!catRes.ok) throw new Error(`Erro HTTP ${catRes.status} ao buscar categorias`);
-
             const dashJson: DashboardData = await dashRes.json();
-            const catJson: Categoria[] = await catRes.json();
-
             setData(dashJson);
-            setCategorias(catJson);
+
+            // Fetch categories separately — don't let it block dashboard
+            try {
+                const catRes = await fetch(`${API_BASE}/categorias?tipo=saida`);
+                if (catRes.ok) {
+                    const catJson: Categoria[] = await catRes.json();
+                    setCategorias(catJson);
+                }
+            } catch {
+                // Categories failing shouldn't crash the dashboard
+                console.warn("Não foi possível carregar categorias");
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : "Erro desconhecido");
         } finally {
