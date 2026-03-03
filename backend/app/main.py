@@ -9,14 +9,22 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.routes import auth, chat, contratos, dashboard, historico, metas, perfil, transacoes
 from app.core.config import settings
-from app.core.database import check_connection
+from app.core.database import check_connection, engine
+
+# Import all models so Base.metadata.create_all() picks them up
+import app.models  # noqa: F401
+from app.models.base import Base
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if not check_connection():
-        raise RuntimeError("❌ Falha na conexão com MySQL. Verifique o .env e se o banco está rodando.")
-    print("✅ Conexão com MySQL estabelecida com sucesso.")
+        raise RuntimeError("❌ Falha na conexão com o banco de dados. Verifique o .env e se o banco está rodando.")
+
+    # Create all tables that don't exist yet
+    Base.metadata.create_all(bind=engine)
+
+    print("✅ Conexão com PostgreSQL estabelecida. Tabelas sincronizadas.")
     yield
     print("🛑 Servidor encerrado.")
 

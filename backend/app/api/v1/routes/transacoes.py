@@ -1,7 +1,5 @@
 """
 Transaction, cycle, category and reserve routes.
-Added: GET /transacoes/{ciclo_id}, PATCH /transacoes/{id}, DELETE /transacoes/{id},
-       GET /reserva/{usuario_id}
 """
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
@@ -31,21 +29,21 @@ def create_transacao(payload: TransacaoCreate, db: Session = Depends(get_db)) ->
 
 # ── List transactions for a cycle ─────────────────────────────────────────────
 @router.get("/transacoes/{ciclo_id}", response_model=list[TransacaoDetalhe])
-def list_transacoes(ciclo_id: int, db: Session = Depends(get_db)) -> list[TransacaoDetalhe]:
+def list_transacoes(ciclo_id: str, db: Session = Depends(get_db)) -> list[TransacaoDetalhe]:
     return _service.list_transacoes(db, ciclo_id)
 
 
 # ── Update transaction ────────────────────────────────────────────────────────
 @router.patch("/transacoes/{transacao_id}", response_model=TransacaoDetalhe)
 def update_transacao(
-    transacao_id: int, payload: TransacaoUpdate, db: Session = Depends(get_db)
+    transacao_id: str, payload: TransacaoUpdate, db: Session = Depends(get_db)
 ) -> TransacaoDetalhe:
     return _service.update_transacao(db, transacao_id, payload)
 
 
 # ── Delete transaction ────────────────────────────────────────────────────────
 @router.delete("/transacoes/{transacao_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_transacao(transacao_id: int, db: Session = Depends(get_db)) -> None:
+def delete_transacao(transacao_id: str, db: Session = Depends(get_db)) -> None:
     _service.delete_transacao(db, transacao_id)
 
 

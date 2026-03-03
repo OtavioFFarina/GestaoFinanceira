@@ -11,8 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # ── Parcela ───────────────────────────────────────────────────────────────────
 
 class ParcelaResponse(BaseModel):
-    id: int
-    contrato_id: int
+    id: str
+    contrato_id: str
     numero_parcela: int
     valor_parcela: float
     data_vencimento: date
@@ -44,7 +44,7 @@ class ContratoCreate(BaseModel):
 
 class ContratoResponse(BaseModel):
     """Resposta completa de um contrato com suas parcelas."""
-    id: int
+    id: str
     usuario_id: str
     tipo: str
     descricao: str
@@ -61,7 +61,7 @@ class ContratoResponse(BaseModel):
 
 class ContratoListItem(BaseModel):
     """Item resumido para listagem de contratos."""
-    id: int
+    id: str
     tipo: str
     descricao: str
     valor_total: float
@@ -81,7 +81,7 @@ class ContratoListItem(BaseModel):
 
 class BaixaResponse(BaseModel):
     """Retorno após dar baixa em uma parcela."""
-    parcela_id: int
+    parcela_id: str
     status: str
     data_pagamento: date
     contrato_quitado: bool  # True se todas as parcelas foram pagas

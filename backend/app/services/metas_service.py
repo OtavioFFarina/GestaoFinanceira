@@ -1,97 +1,88 @@
 """
-MetasService — CRUD for financial goals.
+MetasService — CRUD for financial goals using ORM.
 """
-import json
-from decimal import Decimal
-
-from sqlalchemy import text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.goal import Goal
 from app.schemas.auth import MetaCreate, MetaResponse, MetaUpdate
 
 
 class MetasService:
 
-    def _row_to_meta(self, row: dict) -> MetaResponse:
-        val_alvo = float(row["valor_alvo"])
-        val_atual = float(row["valor_atual"])
+    def _goal_to_meta(self, goal: Goal) -> MetaResponse:
+        val_alvo = float(goal.target_amount)
+        val_atual = float(goal.current_amount)
         return MetaResponse(
-            id=row["id"],
-            usuario_id=str(row["usuario_id"]),
-            titulo=row["titulo"],
-            descricao=row["descricao"],
+            id=goal.id,
+            usuario_id=str(goal.user_id),
+            titulo=goal.title,
+            descricao=goal.description,
             valor_alvo=val_alvo,
             valor_atual=val_atual,
-            prazo=row["prazo"],
-            categoria_id=row["categoria_id"],
-            status=row["status"],
-            ia_dicas=row["ia_dicas"],
-            created_at=row["created_at"],
+            prazo=goal.deadline,
+            categoria_id=goal.category_id,
+            status=goal.status.value if goal.status else "ativa",
+            ia_dicas=goal.ai_tips,
+            created_at=goal.created_at,
             percentual=round((val_atual / val_alvo * 100), 2) if val_alvo > 0 else 0.0,
         )
 
     def list_metas(self, db: Session, usuario_id: str) -> list[MetaResponse]:
-        rows = db.execute(
-            text("""
-                SELECT id, usuario_id, titulo, descricao, valor_alvo, valor_atual,
-                       prazo, categoria_id, status, ia_dicas, created_at
-                FROM metas
-                WHERE usuario_id = :uid
-                ORDER BY status = 'ativa' DESC, prazo ASC
-            """),
-            {"uid": usuario_id},
-        ).mappings().all()
-        return [self._row_to_meta(dict(r)) for r in rows]
+        goals = db.execute(
+            select(Goal)
+            .where(Goal.user_id == usuario_id)
+            .order_by(
+                (Goal.status == "ativa").desc(),
+                Goal.deadline.asc(),
+            )
+        ).scalars().all()
+        return [self._goal_to_meta(g) for g in goals]
 
     def create_meta(self, db: Session, usuario_id: str, payload: MetaCreate) -> MetaResponse:
-        result = db.execute(
-            text("""
-                INSERT INTO metas (usuario_id, titulo, descricao, valor_alvo,
-                                   valor_atual, prazo, categoria_id)
-                VALUES (:uid, :titulo, :descricao, :valor_alvo,
-                        :valor_atual, :prazo, :cat_id)
-            """),
-            {
-                "uid": usuario_id,
-                "titulo": payload.titulo,
-                "descricao": payload.descricao,
-                "valor_alvo": float(payload.valor_alvo),
-                "valor_atual": float(payload.valor_atual),
-                "prazo": payload.prazo.isoformat(),
-                "cat_id": payload.categoria_id,
-            },
+        goal = Goal(
+            user_id=usuario_id,
+            title=payload.titulo,
+            description=payload.descricao,
+            target_amount=float(payload.valor_alvo),
+            current_amount=float(payload.valor_atual),
+            deadline=payload.prazo,
+            category_id=payload.categoria_id,
         )
+        db.add(goal)
         db.commit()
-        new_id = result.lastrowid
+        db.refresh(goal)
+        return self._goal_to_meta(goal)
 
-        row = db.execute(
-            text("SELECT * FROM metas WHERE id = :id"),
-            {"id": new_id},
-        ).mappings().first()
-        return self._row_to_meta(dict(row))
+    def update_meta(self, db: Session, meta_id: str, usuario_id: str, payload: MetaUpdate) -> MetaResponse:
+        goal = db.execute(
+            select(Goal).where(Goal.id == meta_id, Goal.user_id == usuario_id)
+        ).scalar_one_or_none()
 
-    def update_meta(self, db: Session, meta_id: int, usuario_id: str, payload: MetaUpdate) -> MetaResponse:
-        fields: dict = {}
-        if payload.titulo is not None: fields["titulo"] = payload.titulo
-        if payload.descricao is not None: fields["descricao"] = payload.descricao
-        if payload.valor_atual is not None: fields["valor_atual"] = float(payload.valor_atual)
-        if payload.prazo is not None: fields["prazo"] = payload.prazo.isoformat()
-        if payload.status is not None: fields["status"] = payload.status
-        if payload.ia_dicas is not None: fields["ia_dicas"] = payload.ia_dicas
+        if not goal:
+            raise ValueError("Meta não encontrada.")
 
-        if fields:
-            set_clause = ", ".join(f"{k} = :{k}" for k in fields)
-            fields["id"] = meta_id
-            fields["uid"] = usuario_id
-            db.execute(
-                text(f"UPDATE metas SET {set_clause} WHERE id = :id AND usuario_id = :uid"),
-                fields,
-            )
+        if payload.titulo is not None:
+            goal.title = payload.titulo
+        if payload.descricao is not None:
+            goal.description = payload.descricao
+        if payload.valor_atual is not None:
+            goal.current_amount = float(payload.valor_atual)
+        if payload.prazo is not None:
+            goal.deadline = payload.prazo
+        if payload.status is not None:
+            goal.status = payload.status
+        if payload.ia_dicas is not None:
+            goal.ai_tips = payload.ia_dicas
+
+        db.commit()
+        db.refresh(goal)
+        return self._goal_to_meta(goal)
+
+    def delete_meta(self, db: Session, meta_id: str, usuario_id: str):
+        goal = db.execute(
+            select(Goal).where(Goal.id == meta_id, Goal.user_id == usuario_id)
+        ).scalar_one_or_none()
+        if goal:
+            db.delete(goal)
             db.commit()
-
-        row = db.execute(text("SELECT * FROM metas WHERE id = :id"), {"id": meta_id}).mappings().first()
-        return self._row_to_meta(dict(row))
-
-    def delete_meta(self, db: Session, meta_id: int, usuario_id: str):
-        db.execute(text("DELETE FROM metas WHERE id = :id AND usuario_id = :uid"), {"id": meta_id, "uid": usuario_id})
-        db.commit()

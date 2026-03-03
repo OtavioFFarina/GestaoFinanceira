@@ -1,13 +1,17 @@
 """
 ContratosService — handles creation, listing, installment payment (baixa) and summary.
+Fully ORM-based, no raw SQL.
 """
+import calendar
 from datetime import date
 from decimal import Decimal, ROUND_DOWN
 from typing import Optional
 
-from sqlalchemy import text
+from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session
 
+from app.models.financial_contract import FinancialContract, ContractStatusEnum, ContractTypeEnum
+from app.models.installment import Installment, InstallmentStatusEnum
 from app.schemas.contratos import (
     BaixaResponse,
     ContratoCreate,
@@ -24,177 +28,131 @@ class ContratosService:
     def create_contrato(self, db: Session, payload: ContratoCreate) -> ContratoResponse:
         """
         Cria o contrato e gera automaticamente N parcelas.
-        Lógica anti-centavo-fantasma:
-          base   = TRUNCATE(valor_total / n, 2)  — trunca, não arredonda
-          última = valor_total - base * (n - 1)  — absorve o centavo restante
+        Lógica anti-centavo-fantasma.
         """
-        # 1. Inserir contrato
-        result = db.execute(
-            text("""
-                INSERT INTO contratos_financeiros
-                    (usuario_id, tipo, descricao, valor_total, num_parcelas,
-                     data_primeiro_vencimento, observacoes)
-                VALUES
-                    (:uid, :tipo, :descricao, :valor_total, :n_parc,
-                     :primeiro_vcto, :obs)
-            """),
-            {
-                "uid":          payload.usuario_id,
-                "tipo":         payload.tipo,
-                "descricao":    payload.descricao,
-                "valor_total":  float(payload.valor_total),
-                "n_parc":       payload.num_parcelas,
-                "primeiro_vcto": payload.data_primeiro_vencimento.isoformat(),
-                "obs":          payload.observacoes,
-            },
+        contract = FinancialContract(
+            user_id=payload.usuario_id,
+            type=ContractTypeEnum(payload.tipo),
+            description=payload.descricao,
+            total_amount=float(payload.valor_total),
+            num_installments=payload.num_parcelas,
+            first_due_date=payload.data_primeiro_vencimento,
+            notes=payload.observacoes,
         )
-        contrato_id = result.lastrowid
+        db.add(contract)
+        db.flush()  # Get the ID without committing
 
-        # 2. Calcular parcelas sem centavo fantasma
+        # Calculate installments without ghost pennies
         n = payload.num_parcelas
         total = payload.valor_total
         base = (total / n).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
         ultima = total - base * (n - 1)
 
-        # 3. Inserir parcelas
         for i in range(1, n + 1):
             valor = ultima if i == n else base
             vcto = _add_months(payload.data_primeiro_vencimento, i - 1)
-            db.execute(
-                text("""
-                    INSERT INTO parcelas
-                        (contrato_id, numero_parcela, valor_parcela, data_vencimento, status)
-                    VALUES
-                        (:cid, :num, :valor, :vcto, 'pendente')
-                """),
-                {
-                    "cid":   contrato_id,
-                    "num":   i,
-                    "valor": float(valor),
-                    "vcto":  vcto.isoformat(),
-                },
+            inst = Installment(
+                contract_id=contract.id,
+                number=i,
+                amount=float(valor),
+                due_date=vcto,
+                status=InstallmentStatusEnum.PENDENTE,
             )
+            db.add(inst)
 
         db.commit()
-        return self.get_contrato(db, contrato_id)
+        db.refresh(contract)
+        return self._contract_to_response(contract)
 
     # ── Detalhe de um contrato ────────────────────────────────────────────────
-    def get_contrato(self, db: Session, contrato_id: int) -> ContratoResponse:
-        row = db.execute(
-            text("SELECT * FROM contratos_financeiros WHERE id = :id"),
-            {"id": contrato_id},
-        ).mappings().first()
-
-        if not row:
+    def get_contrato(self, db: Session, contrato_id: str) -> ContratoResponse:
+        contract = db.get(FinancialContract, contrato_id)
+        if not contract:
             from fastapi import HTTPException, status
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contrato não encontrado.")
-
-        parcelas = self._get_parcelas(db, contrato_id)
-        return ContratoResponse(
-            id=row["id"],
-            usuario_id=str(row["usuario_id"]),
-            tipo=row["tipo"],
-            descricao=row["descricao"],
-            valor_total=float(row["valor_total"]),
-            num_parcelas=row["num_parcelas"],
-            data_primeiro_vencimento=row["data_primeiro_vencimento"],
-            status=row["status"],
-            observacoes=row["observacoes"],
-            created_at=row["created_at"],
-            parcelas=parcelas,
-        )
+        return self._contract_to_response(contract)
 
     # ── Listar contratos de um usuário ────────────────────────────────────────
     def list_contratos(
         self, db: Session, usuario_id: str, tipo: Optional[str] = None
     ) -> list[ContratoListItem]:
-        query = """
-            SELECT
-                c.id, c.tipo, c.descricao, c.valor_total, c.num_parcelas,
-                c.status, c.data_primeiro_vencimento,
-                SUM(p.status = 'paga')    AS parcelas_pagas,
-                SUM(p.status = 'pendente') AS parcelas_pendentes,
-                SUM(p.status = 'atrasada') AS parcelas_atrasadas,
-                MIN(CASE WHEN p.status IN ('pendente','atrasada') THEN p.data_vencimento END) AS proximo_vencimento,
-                MIN(CASE WHEN p.status IN ('pendente','atrasada') THEN p.valor_parcela END)   AS proximo_valor
-            FROM contratos_financeiros c
-            LEFT JOIN parcelas p ON p.contrato_id = c.id
-            WHERE c.usuario_id = :uid
-        """
-        params: dict = {"uid": usuario_id}
+        stmt = select(FinancialContract).where(
+            FinancialContract.user_id == usuario_id
+        )
         if tipo:
-            query += " AND c.tipo = :tipo"
-            params["tipo"] = tipo
-        query += " GROUP BY c.id ORDER BY proximo_vencimento ASC, c.created_at DESC"
+            stmt = stmt.where(FinancialContract.type == tipo)
+        stmt = stmt.order_by(FinancialContract.created_at.desc())
 
-        rows = db.execute(text(query), params).mappings().all()
+        contracts = db.execute(stmt).scalars().all()
+        result = []
 
-        return [
-            ContratoListItem(
-                id=r["id"],
-                tipo=r["tipo"],
-                descricao=r["descricao"],
-                valor_total=float(r["valor_total"]),
-                num_parcelas=r["num_parcelas"],
-                status=r["status"],
-                data_primeiro_vencimento=r["data_primeiro_vencimento"],
-                parcelas_pagas=int(r["parcelas_pagas"] or 0),
-                parcelas_pendentes=int(r["parcelas_pendentes"] or 0),
-                parcelas_atrasadas=int(r["parcelas_atrasadas"] or 0),
-                proximo_vencimento=r["proximo_vencimento"],
-                proximo_valor=float(r["proximo_valor"]) if r["proximo_valor"] else None,
+        for c in contracts:
+            installments = c.installments
+            pagas = sum(1 for i in installments if i.status == InstallmentStatusEnum.PAGA)
+            pendentes = sum(1 for i in installments if i.status == InstallmentStatusEnum.PENDENTE)
+            atrasadas = sum(1 for i in installments if i.status == InstallmentStatusEnum.ATRASADA)
+
+            pending_installments = [
+                i for i in installments
+                if i.status in (InstallmentStatusEnum.PENDENTE, InstallmentStatusEnum.ATRASADA)
+            ]
+            pending_installments.sort(key=lambda i: i.due_date)
+
+            proximo_vcto = pending_installments[0].due_date if pending_installments else None
+            proximo_valor = float(pending_installments[0].amount) if pending_installments else None
+
+            result.append(
+                ContratoListItem(
+                    id=c.id,
+                    tipo=c.type.value,
+                    descricao=c.description,
+                    valor_total=float(c.total_amount),
+                    num_parcelas=c.num_installments,
+                    status=c.status.value,
+                    data_primeiro_vencimento=c.first_due_date,
+                    parcelas_pagas=pagas,
+                    parcelas_pendentes=pendentes,
+                    parcelas_atrasadas=atrasadas,
+                    proximo_vencimento=proximo_vcto,
+                    proximo_valor=proximo_valor,
+                )
             )
-            for r in rows
-        ]
+
+        return result
 
     # ── Dar baixa em uma parcela ──────────────────────────────────────────────
-    def baixar_parcela(self, db: Session, parcela_id: int) -> BaixaResponse:
-        # 1. Marcar parcela como paga
-        db.execute(
-            text("""
-                UPDATE parcelas
-                SET status = 'paga', data_pagamento = CURDATE()
-                WHERE id = :id
-            """),
-            {"id": parcela_id},
+    def baixar_parcela(self, db: Session, parcela_id: str) -> BaixaResponse:
+        inst = db.get(Installment, parcela_id)
+        if not inst:
+            from fastapi import HTTPException, status
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parcela não encontrada.")
+
+        inst.status = InstallmentStatusEnum.PAGA
+        inst.payment_date = date.today()
+
+        # Check if all installments are paid
+        contract = inst.contract
+        all_paid = all(
+            i.status == InstallmentStatusEnum.PAGA
+            for i in contract.installments
         )
-
-        # 2. Obter contrato_id
-        row = db.execute(
-            text("SELECT contrato_id, data_pagamento FROM parcelas WHERE id = :id"),
-            {"id": parcela_id},
-        ).mappings().first()
-        contrato_id = row["contrato_id"]
-        data_pagamento = row["data_pagamento"]
-
-        # 3. Verificar se todas as parcelas estão pagas
-        pendente_count = db.execute(
-            text("SELECT COUNT(*) FROM parcelas WHERE contrato_id = :cid AND status != 'paga'"),
-            {"cid": contrato_id},
-        ).scalar()
-
-        contrato_quitado = int(pendente_count) == 0
-        if contrato_quitado:
-            db.execute(
-                text("UPDATE contratos_financeiros SET status = 'quitado' WHERE id = :id"),
-                {"id": contrato_id},
-            )
+        if all_paid:
+            contract.status = ContractStatusEnum.QUITADO
 
         db.commit()
         return BaixaResponse(
             parcela_id=parcela_id,
             status="paga",
             data_pagamento=date.today(),
-            contrato_quitado=contrato_quitado,
+            contrato_quitado=all_paid,
         )
 
     # ── Excluir contrato (cascade deleta parcelas) ────────────────────────────
-    def delete_contrato(self, db: Session, contrato_id: int) -> None:
-        db.execute(
-            text("DELETE FROM contratos_financeiros WHERE id = :id"),
-            {"id": contrato_id},
-        )
-        db.commit()
+    def delete_contrato(self, db: Session, contrato_id: str) -> None:
+        contract = db.get(FinancialContract, contrato_id)
+        if contract:
+            db.delete(contract)
+            db.commit()
 
     # ── Resumo para cards do dashboard ────────────────────────────────────────
     def get_resumo(self, db: Session, usuario_id: str) -> ResumoContratos:
@@ -206,47 +164,37 @@ class ContratosService:
             mes_fim = today.replace(month=today.month + 1, day=1)
 
         def _totais(tipo: str) -> dict:
-            # Total do mês corrente (SUM filtrado por data)
-            row = db.execute(
-                text("""
-                    SELECT
-                        COALESCE(SUM(CASE
-                            WHEN p.data_vencimento >= :ini AND p.data_vencimento < :fim
-                            THEN p.valor_parcela ELSE 0 END), 0)  AS total_mes,
-                        COUNT(DISTINCT c.id)                        AS contratos_ativos
-                    FROM parcelas p
-                    JOIN contratos_financeiros c ON c.id = p.contrato_id
-                    WHERE c.usuario_id = :uid
-                      AND c.tipo       = :tipo
-                      AND c.status     = 'ativo'
-                      AND p.status    IN ('pendente', 'atrasada')
-                """),
-                {"uid": usuario_id, "tipo": tipo,
-                 "ini": mes_ini.isoformat(), "fim": mes_fim.isoformat()},
-            ).mappings().first()
+            # Get active contracts of this type
+            contracts = db.execute(
+                select(FinancialContract).where(
+                    FinancialContract.user_id == usuario_id,
+                    FinancialContract.type == tipo,
+                    FinancialContract.status == ContractStatusEnum.ATIVO,
+                )
+            ).scalars().all()
 
-            # Próximo vencimento: qualquer parcela pendente a partir de HOJE (sem limite de mês)
-            proximo = db.execute(
-                text("""
-                    SELECT MIN(p.data_vencimento) AS proximo_vcto
-                    FROM parcelas p
-                    JOIN contratos_financeiros c ON c.id = p.contrato_id
-                    WHERE c.usuario_id     = :uid
-                      AND c.tipo           = :tipo
-                      AND c.status         = 'ativo'
-                      AND p.status        IN ('pendente', 'atrasada')
-                      AND p.data_vencimento >= :hoje
-                """),
-                {"uid": usuario_id, "tipo": tipo, "hoje": today.isoformat()},
-            ).mappings().first()
+            total_mes = 0.0
+            contratos_ativos = len(contracts)
+            proximo_vcto = None
+
+            for c in contracts:
+                for inst in c.installments:
+                    if inst.status in (InstallmentStatusEnum.PENDENTE, InstallmentStatusEnum.ATRASADA):
+                        # Sum for this month
+                        if mes_ini <= inst.due_date < mes_fim:
+                            total_mes += float(inst.amount)
+                        # Find next due date from today
+                        if inst.due_date >= today:
+                            if proximo_vcto is None or inst.due_date < proximo_vcto:
+                                proximo_vcto = inst.due_date
 
             return {
-                "total_mes":        float(row["total_mes"]) if row["total_mes"] else 0.0,
-                "contratos_ativos": int(row["contratos_ativos"]) if row["contratos_ativos"] else 0,
-                "proximo_vcto":     proximo["proximo_vcto"] if proximo else None,
+                "total_mes": total_mes,
+                "contratos_ativos": contratos_ativos,
+                "proximo_vcto": proximo_vcto,
             }
 
-        pagar   = _totais("pagar")
+        pagar = _totais("pagar")
         receber = _totais("receber")
 
         return ResumoContratos(
@@ -258,78 +206,81 @@ class ContratosService:
             proximo_vencimento_receber=receber["proximo_vcto"],
         )
 
-    # ── Parcelas pendentes de pagar de um usuário (para modal do dashboard) ───
+    # ── Parcelas pendentes de pagar (modal do dashboard) ──────────────────────
     def list_parcelas_pendentes_pagar(self, db: Session, usuario_id: str) -> list[dict]:
-        """Retorna parcelas pendentes/atrasadas de contratos tipo 'pagar' para o modal."""
-        rows = db.execute(
-            text("""
-                SELECT
-                    p.id, p.numero_parcela, p.valor_parcela,
-                    p.data_vencimento, p.status,
-                    c.descricao AS contrato_descricao,
-                    c.num_parcelas
-                FROM parcelas p
-                JOIN contratos_financeiros c ON c.id = p.contrato_id
-                WHERE c.usuario_id = :uid
-                  AND c.tipo       = 'pagar'
-                  AND c.status     = 'ativo'
-                  AND p.status    IN ('pendente', 'atrasada')
-                ORDER BY p.data_vencimento ASC
-            """),
-            {"uid": usuario_id},
-        ).mappings().all()
-        return [
-            {
-                "id": r["id"],
-                "label": f"{r['contrato_descricao']} — Parcela {r['numero_parcela']}/{r['num_parcelas']} "
-                         f"(R$ {float(r['valor_parcela']):.2f}) vence {r['data_vencimento']}",
-                "valor": float(r["valor_parcela"]),
-                "data_vencimento": str(r["data_vencimento"]),
-                "status": r["status"],
-            }
-            for r in rows
-        ]
-
-    # ── Atualizar status de parcelas atrasadas (helper) ──────────────────────
-    def _sync_atrasadas(self, db: Session, usuario_id: str) -> None:
-        """Marca como 'atrasada' toda parcela pendente cujo vencimento já passou."""
-        db.execute(
-            text("""
-                UPDATE parcelas p
-                JOIN contratos_financeiros c ON c.id = p.contrato_id
-                SET p.status = 'atrasada'
-                WHERE c.usuario_id    = :uid
-                  AND p.status        = 'pendente'
-                  AND p.data_vencimento < CURDATE()
-            """),
-            {"uid": usuario_id},
-        )
-        db.commit()
-
-    # ── Parcelas de um contrato ───────────────────────────────────────────────
-    def _get_parcelas(self, db: Session, contrato_id: int) -> list[ParcelaResponse]:
-        rows = db.execute(
-            text("""
-                SELECT id, contrato_id, numero_parcela, valor_parcela,
-                       data_vencimento, data_pagamento, status
-                FROM parcelas
-                WHERE contrato_id = :cid
-                ORDER BY numero_parcela ASC
-            """),
-            {"cid": contrato_id},
-        ).mappings().all()
-        return [
-            ParcelaResponse(
-                id=r["id"],
-                contrato_id=r["contrato_id"],
-                numero_parcela=r["numero_parcela"],
-                valor_parcela=float(r["valor_parcela"]),
-                data_vencimento=r["data_vencimento"],
-                data_pagamento=r["data_pagamento"],
-                status=r["status"],
+        contracts = db.execute(
+            select(FinancialContract).where(
+                FinancialContract.user_id == usuario_id,
+                FinancialContract.type == ContractTypeEnum.PAGAR,
+                FinancialContract.status == ContractStatusEnum.ATIVO,
             )
-            for r in rows
+        ).scalars().all()
+
+        result = []
+        for c in contracts:
+            for inst in c.installments:
+                if inst.status in (InstallmentStatusEnum.PENDENTE, InstallmentStatusEnum.ATRASADA):
+                    result.append({
+                        "id": inst.id,
+                        "label": (
+                            f"{c.description} — Parcela {inst.number}/{c.num_installments} "
+                            f"(R$ {float(inst.amount):.2f}) vence {inst.due_date}"
+                        ),
+                        "valor": float(inst.amount),
+                        "data_vencimento": str(inst.due_date),
+                        "status": inst.status.value,
+                    })
+
+        result.sort(key=lambda x: x["data_vencimento"])
+        return result
+
+    # ── Sync atrasadas ────────────────────────────────────────────────────────
+    def _sync_atrasadas(self, db: Session, usuario_id: str) -> None:
+        """Marks overdue pending installments as 'atrasada'."""
+        contracts = db.execute(
+            select(FinancialContract).where(
+                FinancialContract.user_id == usuario_id,
+            )
+        ).scalars().all()
+
+        today = date.today()
+        changed = False
+        for c in contracts:
+            for inst in c.installments:
+                if inst.status == InstallmentStatusEnum.PENDENTE and inst.due_date < today:
+                    inst.status = InstallmentStatusEnum.ATRASADA
+                    changed = True
+
+        if changed:
+            db.commit()
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+    def _contract_to_response(self, contract: FinancialContract) -> ContratoResponse:
+        parcelas = [
+            ParcelaResponse(
+                id=i.id,
+                contrato_id=i.contract_id,
+                numero_parcela=i.number,
+                valor_parcela=float(i.amount),
+                data_vencimento=i.due_date,
+                data_pagamento=i.payment_date,
+                status=i.status.value,
+            )
+            for i in contract.installments
         ]
+        return ContratoResponse(
+            id=contract.id,
+            usuario_id=str(contract.user_id),
+            tipo=contract.type.value,
+            descricao=contract.description,
+            valor_total=float(contract.total_amount),
+            num_parcelas=contract.num_installments,
+            data_primeiro_vencimento=contract.first_due_date,
+            status=contract.status.value,
+            observacoes=contract.notes,
+            created_at=contract.created_at,
+            parcelas=parcelas,
+        )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -337,9 +288,8 @@ class ContratosService:
 def _add_months(d: date, months: int) -> date:
     """Adds `months` months to a date, clamping to the last day of the month."""
     month = d.month - 1 + months
-    year  = d.year + month // 12
+    year = d.year + month // 12
     month = month % 12 + 1
-    import calendar
     last_day = calendar.monthrange(year, month)[1]
     day = min(d.day, last_day)
     return d.replace(year=year, month=month, day=day)

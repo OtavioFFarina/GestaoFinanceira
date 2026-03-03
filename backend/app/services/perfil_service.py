@@ -1,88 +1,94 @@
 """
-PerfilService — get and update user profile.
+PerfilService — get and update user profile using ORM.
 """
-from sqlalchemy import text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.user import User
+from app.models.user_profile import UserProfile
+from app.models.monthly_record import MonthlyRecord
+from app.models.transaction import Transaction
+from app.models.goal import Goal
+from app.models.financial_contract import FinancialContract
+from app.models.installment import Installment
 from app.schemas.auth import PerfilResponse, PerfilUpdate
 
 
 class PerfilService:
 
     def get_perfil(self, db: Session, usuario_id: str) -> PerfilResponse:
-        row = db.execute(
-            text("""
-                SELECT u.id AS usuario_id, u.nome, u.email,
-                       p.nome_exibicao, p.foto_url, p.tema, p.meses_historico
-                FROM users u
-                LEFT JOIN perfil_usuario p ON p.usuario_id = u.id
-                WHERE u.id = :uid
-            """),
-            {"uid": usuario_id},
-        ).mappings().first()
+        user = db.execute(
+            select(User).where(User.id == usuario_id)
+        ).scalar_one_or_none()
 
-        if not row:
+        if not user:
             raise ValueError("Usuário não encontrado.")
 
+        profile = db.execute(
+            select(UserProfile).where(UserProfile.user_id == usuario_id)
+        ).scalar_one_or_none()
+
         return PerfilResponse(
-            usuario_id=str(row["usuario_id"]),
-            nome=row["nome"],
-            nome_exibicao=row["nome_exibicao"] or row["nome"],
-            email=row["email"],
-            foto_url=row["foto_url"],
-            tema=row["tema"] or "dark",
-            meses_historico=row["meses_historico"] or 12,
+            usuario_id=str(user.id),
+            nome=user.name,
+            nome_exibicao=profile.display_name if profile and profile.display_name else user.name,
+            email=user.email,
+            foto_url=profile.photo_url if profile else None,
+            tema=profile.theme if profile else "dark",
+            meses_historico=profile.history_months if profile else 12,
         )
 
     def update_perfil(self, db: Session, usuario_id: str, payload: PerfilUpdate) -> PerfilResponse:
-        updates: dict = {}
+        profile = db.execute(
+            select(UserProfile).where(UserProfile.user_id == usuario_id)
+        ).scalar_one_or_none()
+
+        if not profile:
+            # Create profile if it doesn't exist
+            profile = UserProfile(user_id=usuario_id)
+            db.add(profile)
+
         if payload.nome_exibicao is not None:
-            updates["nome_exibicao"] = payload.nome_exibicao
+            profile.display_name = payload.nome_exibicao
         if payload.foto_url is not None:
-            updates["foto_url"] = payload.foto_url
+            profile.photo_url = payload.foto_url
         if payload.tema is not None:
-            updates["tema"] = payload.tema
+            profile.theme = payload.tema
         if payload.meses_historico is not None:
-            updates["meses_historico"] = payload.meses_historico
+            profile.history_months = payload.meses_historico
 
-        if updates:
-            set_clause = ", ".join([f"{k} = :{k}" for k in updates.keys()])
-            updates["uid"] = usuario_id
-            db.execute(
-                text(f"""
-                    INSERT INTO perfil_usuario (usuario_id, {', '.join(k for k in updates if k != 'uid')})
-                    VALUES (:uid, {', '.join(f':{k}' for k in updates if k != 'uid')})
-                    ON DUPLICATE KEY UPDATE {set_clause}
-                """),
-                updates,
-            )
-            db.commit()
-
+        db.commit()
         return self.get_perfil(db, usuario_id)
 
     def delete_dados(self, db: Session, usuario_id: str):
-        # 1. Deletar transacoes associadas aos ciclos_mensais deste usuario
-        db.execute(text("""
-            DELETE t FROM transacoes t
-            INNER JOIN ciclos_mensais c ON t.ciclo_id = c.id
-            WHERE c.usuario_id = :uid
-        """), {"uid": usuario_id})
+        # 1. Delete transactions linked to monthly records
+        records = db.execute(
+            select(MonthlyRecord).where(MonthlyRecord.user_id == usuario_id)
+        ).scalars().all()
 
-        # 2. Deletar os ciclos_mensais (metas_alocacao eh excluido via CASCADE)
-        db.execute(text("DELETE FROM ciclos_mensais WHERE usuario_id = :uid"), {"uid": usuario_id})
+        for record in records:
+            txs = db.execute(
+                select(Transaction).where(Transaction.record_id == record.id)
+            ).scalars().all()
+            for tx in txs:
+                db.delete(tx)
 
-        # 3. Deletar as metas independentes
-        db.execute(text("DELETE FROM metas WHERE usuario_id = :uid"), {"uid": usuario_id})
+        # 2. Delete monthly records (record_categories cascade)
+        for record in records:
+            db.delete(record)
 
-        # 4. Deletar parcelas (FK filho de contratos_financeiros)
-        db.execute(text("""
-            DELETE p FROM parcelas p
-            INNER JOIN contratos_financeiros c ON p.contrato_id = c.id
-            WHERE c.usuario_id = :uid
-        """), {"uid": usuario_id})
+        # 3. Delete goals
+        goals = db.execute(
+            select(Goal).where(Goal.user_id == usuario_id)
+        ).scalars().all()
+        for goal in goals:
+            db.delete(goal)
 
-        # 5. Deletar contratos financeiros (dividas e recebíveis)
-        db.execute(text("DELETE FROM contratos_financeiros WHERE usuario_id = :uid"), {"uid": usuario_id})
+        # 4. Delete financial contracts (installments cascade)
+        contracts = db.execute(
+            select(FinancialContract).where(FinancialContract.user_id == usuario_id)
+        ).scalars().all()
+        for contract in contracts:
+            db.delete(contract)
 
         db.commit()
-

@@ -1,11 +1,14 @@
 """
 DashboardService — Business logic for the dashboard endpoint.
-Queries vw_planejado_vs_realizado and aggregates data for the frontend.
-SOLID: Single Responsibility — only handles dashboard aggregation.
+Uses ORM models (MonthlyRecord, RecordCategory) instead of raw SQL views.
 """
-from sqlalchemy import text
+from datetime import date
+
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
+from app.models.monthly_record import MonthlyRecord
+from app.models.record_category import RecordCategory
 from app.schemas.dashboard import CategoriaAlocacao, DashboardResponse
 
 
@@ -20,55 +23,52 @@ class DashboardService:
     ) -> DashboardResponse:
         """
         Returns the full dashboard payload for a given user/month.
-        Reads from the vw_planejado_vs_realizado VIEW for chart data.
+        Uses ORM models instead of database views.
         """
-        # 1. Fetch the cycle header (renda_total + ciclo_id)
-        ciclo_row = db.execute(
-            text("""
-                SELECT id, renda_total
-                FROM ciclos_mensais
-                WHERE usuario_id = :uid AND ano = :ano AND mes = :mes
-            """),
-            {"uid": usuario_id, "ano": ano, "mes": mes},
-        ).mappings().first()
-
-        renda_total: float = float(ciclo_row["renda_total"]) if ciclo_row else 0.0
-        ciclo_id: int | None = ciclo_row["id"] if ciclo_row else None
-
-        # 2. Fetch per-category breakdown from the VIEW
-        view_rows = db.execute(
-            text("""
-                SELECT
-                    categoria_id,
-                    categoria,
-                    slug,
-                    cor_hex,
-                    valor_planejado,
-                    percentual_planejado,
-                    valor_realizado,
-                    percentual_realizado
-                FROM vw_planejado_vs_realizado
-                WHERE usuario_id = :uid AND ano = :ano AND mes = :mes
-                ORDER BY valor_realizado DESC
-            """),
-            {"uid": usuario_id, "ano": ano, "mes": mes},
-        ).mappings().all()
-
-        alocacoes = [
-            CategoriaAlocacao(
-                categoria_id=row["categoria_id"],
-                categoria=row["categoria"],
-                slug=row["slug"],
-                cor_hex=row["cor_hex"],
-                valor_planejado=float(row["valor_planejado"]),
-                percentual_planejado=float(row["percentual_planejado"]),
-                valor_realizado=float(row["valor_realizado"]),
-                percentual_realizado=float(row["percentual_realizado"]),
+        # 1. Fetch the monthly record
+        ref_month = date(ano, mes, 1)
+        record = db.execute(
+            select(MonthlyRecord).where(
+                MonthlyRecord.user_id == usuario_id,
+                MonthlyRecord.reference_month == ref_month,
             )
-            for row in view_rows
-        ]
+        ).scalar_one_or_none()
 
-        # 3. Compute aggregates — all float, no Decimal mixing
+        renda_total: float = float(record.total_received) if record else 0.0
+        ciclo_id: str | None = record.id if record else None
+
+        # 2. Fetch per-category breakdown from RecordCategory
+        alocacoes: list[CategoriaAlocacao] = []
+        if record:
+            categories = db.execute(
+                select(RecordCategory).where(
+                    RecordCategory.record_id == record.id
+                )
+            ).scalars().all()
+
+            for cat in categories:
+                planned = float(cat.planned_amount)
+                actual = float(cat.actual_amount)
+                pct_planned = round(planned / renda_total * 100, 2) if renda_total > 0 else 0.0
+                pct_actual = round(actual / renda_total * 100, 2) if renda_total > 0 else 0.0
+
+                alocacoes.append(
+                    CategoriaAlocacao(
+                        categoria_id=cat.id,
+                        categoria=cat.category.value,
+                        slug=cat.category.value,
+                        cor_hex=None,
+                        valor_planejado=planned,
+                        percentual_planejado=pct_planned,
+                        valor_realizado=actual,
+                        percentual_realizado=pct_actual,
+                    )
+                )
+
+        # Sort by actual amount descending
+        alocacoes.sort(key=lambda a: a.valor_realizado, reverse=True)
+
+        # 3. Compute aggregates
         total_gasto: float = sum(a.valor_realizado for a in alocacoes)
         saldo_livre: float = renda_total - total_gasto
         taxa_poupanca: float = (

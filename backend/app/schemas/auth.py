@@ -54,7 +54,7 @@ class PerfilUpdate(BaseModel):
 
 # ── Histórico ─────────────────────────────────────────────────────────────────
 class CicloResumo(BaseModel):
-    ciclo_id: int
+    ciclo_id: str
     ano: int
     mes: int
     renda_total: float
@@ -72,7 +72,7 @@ class MetaCreate(BaseModel):
     valor_alvo: Decimal = Field(..., gt=Decimal("0.00"))
     valor_atual: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
     prazo: date
-    categoria_id: int | None = None
+    categoria_id: str | None = None
 
 
 class MetaUpdate(BaseModel):
@@ -85,14 +85,14 @@ class MetaUpdate(BaseModel):
 
 
 class MetaResponse(BaseModel):
-    id: int
+    id: str
     usuario_id: str
     titulo: str
     descricao: str | None
     valor_alvo: float
     valor_atual: float
     prazo: date
-    categoria_id: int | None
+    categoria_id: str | None
     status: str
     ia_dicas: str | None
     created_at: datetime

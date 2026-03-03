@@ -1,106 +1,98 @@
 """
-AuthService — handles login (bcrypt verify), session creation and logout.
-Uses stateless token stored in DB (sessoes table).
+AuthService — handles registration, login (bcrypt verify), session creation and logout.
+Fully ORM-based, no raw SQL.
 """
-import hashlib
-import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from sqlalchemy import text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.schemas.auth import LoginRequest, LoginResponse, PerfilResponse, RegisterRequest
+from app.models.user import User
+from app.models.user_session import UserSession
+from app.models.user_profile import UserProfile
+from app.schemas.auth import LoginRequest, LoginResponse, RegisterRequest
 
 
 class AuthService:
 
     def register(self, db: Session, payload: RegisterRequest) -> None:
         # 1. Check if email already exists
-        exists = db.execute(
-            text("SELECT id FROM users WHERE email = :email"),
-            {"email": payload.email}
-        ).fetchone()
-        
-        if exists:
+        existing = db.execute(
+            select(User).where(User.email == payload.email.lower().strip())
+        ).scalar_one_or_none()
+
+        if existing:
             raise ValueError("Este e-mail já está em uso.")
 
-        # 2. Hash password
-        senha_hash = self.hash_password(payload.senha)
-
-        # 3. Create user
-        db.execute(
-            text("""
-                INSERT INTO users (nome, email, senha_hash)
-                VALUES (:nome, :email, :senha_hash)
-            """),
-            {
-                "nome": payload.nome.strip(),
-                "email": payload.email.lower().strip(),
-                "senha_hash": senha_hash
-            }
+        # 2. Hash password and create user
+        user = User(
+            name=payload.nome.strip(),
+            email=payload.email.lower().strip(),
+            hashed_password=self.hash_password(payload.senha),
         )
+        db.add(user)
         db.commit()
 
     def login(self, db: Session, payload: LoginRequest) -> LoginResponse:
         # 1. Find user by email
         user = db.execute(
-            text("SELECT id, nome, email, senha_hash, ativo FROM users WHERE email = :email"),
-            {"email": payload.email},
-        ).mappings().first()
+            select(User).where(User.email == payload.email)
+        ).scalar_one_or_none()
 
-        if not user or not user["ativo"]:
+        if not user:
             raise ValueError("Email ou senha inválidos.")
 
         # 2. Verify password
-        if not bcrypt.checkpw(payload.senha.encode(), user["senha_hash"].encode()):
+        if not bcrypt.checkpw(payload.senha.encode(), user.hashed_password.encode()):
             raise ValueError("Email ou senha inválidos.")
 
         # 3. Get display profile
-        perfil = db.execute(
-            text("SELECT nome_exibicao, tema FROM perfil_usuario WHERE usuario_id = :uid"),
-            {"uid": user["id"]},
-        ).mappings().first()
+        profile = db.execute(
+            select(UserProfile).where(UserProfile.user_id == user.id)
+        ).scalar_one_or_none()
 
-        nome_exibicao = perfil["nome_exibicao"] if perfil else user["nome"]
-        tema = perfil["tema"] if perfil else "dark"
+        display_name = profile.display_name if profile and profile.display_name else user.name
+        theme = profile.theme if profile else "dark"
 
         # 4. Create session token (64-char hex)
         token = secrets.token_hex(32)
-        expires_at = datetime.utcnow() + timedelta(days=30)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=30)
 
-        db.execute(
-            text("""
-                INSERT INTO sessoes (usuario_id, token, expires_at)
-                VALUES (:uid, :token, :exp)
-            """),
-            {"uid": user["id"], "token": token, "exp": expires_at},
+        session = UserSession(
+            user_id=user.id,
+            token=token,
+            expires_at=expires_at,
         )
+        db.add(session)
         db.commit()
 
         return LoginResponse(
             token=token,
-            usuario_id=str(user["id"]),
-            nome_exibicao=nome_exibicao,
-            tema=tema,
-            email=str(user["email"]),
+            usuario_id=str(user.id),
+            nome_exibicao=display_name,
+            tema=theme,
+            email=str(user.email),
         )
 
     def logout(self, db: Session, token: str) -> None:
-        db.execute(text("DELETE FROM sessoes WHERE token = :token"), {"token": token})
-        db.commit()
+        session = db.execute(
+            select(UserSession).where(UserSession.token == token)
+        ).scalar_one_or_none()
+        if session:
+            db.delete(session)
+            db.commit()
 
     def verify_token(self, db: Session, token: str) -> str | None:
-        """Returns usuario_id if token is valid and not expired, else None."""
-        row = db.execute(
-            text("""
-                SELECT usuario_id FROM sessoes
-                WHERE token = :token AND expires_at > NOW()
-            """),
-            {"token": token},
-        ).mappings().first()
-        return str(row["usuario_id"]) if row else None
+        """Returns user_id if token is valid and not expired, else None."""
+        session = db.execute(
+            select(UserSession).where(
+                UserSession.token == token,
+                UserSession.expires_at > datetime.now(timezone.utc),
+            )
+        ).scalar_one_or_none()
+        return str(session.user_id) if session else None
 
     @staticmethod
     def hash_password(senha: str) -> str:

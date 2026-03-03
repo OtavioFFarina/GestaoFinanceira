@@ -1,5 +1,5 @@
 """
-Updated Transacao schemas with meta_id support and full response for list view.
+Updated Transacao schemas with UUID support and full response for list view.
 """
 from datetime import date, datetime
 from decimal import Decimal
@@ -10,9 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class TransacaoCreate(BaseModel):
     """Body for POST /api/transacoes"""
-    ciclo_id: int = Field(..., gt=0)
-    categoria_id: int = Field(..., gt=0)
-    meta_id: int | None = None  # Optional: link investment to a goal
+    ciclo_id: str = Field(..., min_length=1)
+    categoria_id: str = Field(..., min_length=1)
+    meta_id: str | None = None  # Optional: link investment to a goal
     descricao: str = Field(..., min_length=1, max_length=255)
     valor: Decimal = Field(..., gt=Decimal("0.00"), decimal_places=2)
     tipo: Literal["entrada", "saida"]
@@ -34,17 +34,17 @@ class TransacaoUpdate(BaseModel):
     valor: Decimal | None = None
     data_transacao: date | None = None
     observacoes: str | None = None
-    meta_id: int | None = None
+    meta_id: str | None = None
 
 
 class TransacaoDetalhe(BaseModel):
     """Full transaction detail response for list modals."""
-    id: int
-    ciclo_id: int
-    categoria_id: int
+    id: str
+    ciclo_id: str
+    categoria_id: str
     categoria_nome: str
     categoria_cor: str | None
-    meta_id: int | None
+    meta_id: str | None
     meta_titulo: str | None
     descricao: str
     valor: float
@@ -59,9 +59,9 @@ class TransacaoDetalhe(BaseModel):
 
 class TransacaoResponse(BaseModel):
     """Response after creating a transaction."""
-    id: int
-    ciclo_id: int
-    categoria_id: int
+    id: str
+    ciclo_id: str
+    categoria_id: str
     descricao: str
     valor: Decimal
     tipo: str
@@ -82,7 +82,7 @@ class CicloCreate(BaseModel):
 
 class CicloResponse(BaseModel):
     """Response after creating/updating a monthly cycle."""
-    id: int
+    id: str
     usuario_id: str
     ano: int
     mes: int
@@ -94,7 +94,7 @@ class CicloResponse(BaseModel):
 
 class CategoriaPublica(BaseModel):
     """Used to populate category selects in the frontend modals."""
-    id: int
+    id: str
     nome: str
     slug: str
     cor_hex: str | None

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class CategoriaAlocacao(BaseModel):
-    categoria_id: int
+    categoria_id: str
     categoria: str
     slug: str
     cor_hex: str | None
@@ -19,7 +19,7 @@ class CategoriaAlocacao(BaseModel):
 
 
 class DashboardResponse(BaseModel):
-    ciclo_id: int | None
+    ciclo_id: str | None
     usuario_id: str
     ano: int
     mes: int

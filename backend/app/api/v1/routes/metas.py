@@ -21,10 +21,10 @@ def create_meta(usuario_id: str, payload: MetaCreate, db: Session = Depends(get_
 
 
 @router.patch("/{usuario_id}/{meta_id}", response_model=MetaResponse)
-def update_meta(usuario_id: str, meta_id: int, payload: MetaUpdate, db: Session = Depends(get_db)) -> MetaResponse:
+def update_meta(usuario_id: str, meta_id: str, payload: MetaUpdate, db: Session = Depends(get_db)) -> MetaResponse:
     return _svc.update_meta(db, meta_id, usuario_id, payload)
 
 @router.delete("/{usuario_id}/{meta_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_meta(usuario_id: str, meta_id: int, db: Session = Depends(get_db)):
+def delete_meta(usuario_id: str, meta_id: str, db: Session = Depends(get_db)):
     _svc.delete_meta(db, meta_id, usuario_id)
     return None

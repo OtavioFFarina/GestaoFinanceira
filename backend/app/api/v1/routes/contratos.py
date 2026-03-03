@@ -64,20 +64,20 @@ def get_resumo(usuario_id: str, db: Session = Depends(get_db)) -> ResumoContrato
 
 # ── Detalhe de um contrato ────────────────────────────────────────────────────
 @router.get("/contratos/detalhe/{contrato_id}", response_model=ContratoResponse)
-def get_contrato(contrato_id: int, db: Session = Depends(get_db)) -> ContratoResponse:
+def get_contrato(contrato_id: str, db: Session = Depends(get_db)) -> ContratoResponse:
     """Retorna contrato completo com todas as parcelas."""
     return _svc.get_contrato(db, contrato_id)
 
 
 # ── Dar baixa em parcela ──────────────────────────────────────────────────────
 @router.patch("/parcelas/{parcela_id}/baixa", response_model=BaixaResponse)
-def baixar_parcela(parcela_id: int, db: Session = Depends(get_db)) -> BaixaResponse:
+def baixar_parcela(parcela_id: str, db: Session = Depends(get_db)) -> BaixaResponse:
     """Marca uma parcela como paga (data_pagamento = hoje)."""
     return _svc.baixar_parcela(db, parcela_id)
 
 
 # ── Excluir contrato ──────────────────────────────────────────────────────────
 @router.delete("/contratos/{contrato_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_contrato(contrato_id: int, db: Session = Depends(get_db)) -> None:
+def delete_contrato(contrato_id: str, db: Session = Depends(get_db)) -> None:
     """Exclui um contrato e todas as suas parcelas (CASCADE)."""
     _svc.delete_contrato(db, contrato_id)

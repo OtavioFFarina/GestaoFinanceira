@@ -5,7 +5,7 @@ Uses SQLAlchemy 2.x with context manager pattern for session lifecycle.
 from collections.abc import Generator
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
 
@@ -26,10 +26,6 @@ SessionLocal = sessionmaker(
     autoflush=False,
     expire_on_commit=False,
 )
-
-
-class Base(DeclarativeBase):
-    pass
 
 
 # ── Dependency: FastAPI route injection ───────────────────────────────────────

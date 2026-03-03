@@ -5,6 +5,8 @@ RAG Flow:
   1. Collect real financial context from DB for the user
   2. Build a dynamic system prompt with that context + market indicators
   3. Call the LLM (OpenAI-compatible API) and return the response
+
+Fully ORM-based, no raw SQL.
 """
 from __future__ import annotations
 
@@ -12,10 +14,15 @@ import json
 import logging
 from datetime import datetime
 
-from sqlalchemy import text
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.monthly_record import MonthlyRecord
+from app.models.transaction import Transaction, TransactionTypeEnum
+from app.models.financial_contract import FinancialContract
+from app.models.goal import Goal, GoalStatusEnum
+from app.models.market_indicator import MarketIndicator
 
 logger = logging.getLogger(__name__)
 
@@ -23,28 +30,29 @@ logger = logging.getLogger(__name__)
 # ── Context Collector ────────────────────────────────────────────────────────
 
 def _get_current_cycle(db: Session, usuario_id: str) -> dict:
-    """Returns the open 'ativo' monthly cycle, if any."""
-    row = db.execute(
-        text("""
-            SELECT c.id, c.ano, c.mes, c.renda_total, c.saldo_atual,
-                   COALESCE(SUM(t.valor), 0) AS total_saidas
-            FROM ciclos_mensais c
-            LEFT JOIN transacoes t ON t.ciclo_id = c.id AND t.tipo = 'saida'
-            WHERE c.usuario_id = :uid
-              AND c.status = 'ativo'
-            GROUP BY c.id, c.ano, c.mes, c.renda_total, c.saldo_atual
-            ORDER BY c.ano DESC, c.mes DESC
-            LIMIT 1
-        """),
-        {"uid": usuario_id},
-    ).mappings().first()
+    """Returns the most recent monthly record for the user."""
+    record = db.execute(
+        select(MonthlyRecord)
+        .where(MonthlyRecord.user_id == usuario_id)
+        .order_by(MonthlyRecord.reference_month.desc())
+    ).scalars().first()
 
-    if not row:
+    if not record:
         return {}
 
-    renda = float(row["renda_total"] or 0)
-    saidas = float(row["total_saidas"] or 0)
-    saldo = float(row["saldo_atual"] or 0)
+    renda = float(record.total_received or 0)
+
+    # Sum of 'saida' transactions
+    total_saidas = db.execute(
+        select(func.coalesce(func.sum(Transaction.amount), 0))
+        .where(
+            Transaction.record_id == record.id,
+            Transaction.type == TransactionTypeEnum.SAIDA,
+        )
+    ).scalar()
+    saidas = float(total_saidas or 0)
+
+    saldo = renda - saidas
     pct = round((saidas / renda * 100), 1) if renda > 0 else 0.0
 
     return {
@@ -57,63 +65,57 @@ def _get_current_cycle(db: Session, usuario_id: str) -> dict:
 
 def _get_dividas(db: Session, usuario_id: str) -> dict:
     """Returns a summary of the user's active financial contracts."""
-    row = db.execute(
-        text("""
-            SELECT
-                SUM(CASE WHEN tipo='pagar' AND status='ativo' THEN valor_total ELSE 0 END) AS total_dividas,
-                SUM(CASE WHEN tipo='receber' AND status='ativo' THEN valor_total ELSE 0 END) AS total_receber,
-                COUNT(CASE WHEN tipo='pagar' AND status='ativo' THEN 1 END) AS num_dividas,
-                COUNT(CASE WHEN tipo='receber' AND status='ativo' THEN 1 END) AS num_receber
-            FROM contratos_financeiros
-            WHERE usuario_id = :uid
-        """),
-        {"uid": usuario_id},
-    ).mappings().first()
+    contracts = db.execute(
+        select(FinancialContract).where(
+            FinancialContract.user_id == usuario_id,
+            FinancialContract.status == "ativo",
+        )
+    ).scalars().all()
 
-    if not row:
-        return {}
+    total_dividas = sum(float(c.total_amount) for c in contracts if c.type.value == "pagar")
+    total_receber = sum(float(c.total_amount) for c in contracts if c.type.value == "receber")
+    num_dividas = sum(1 for c in contracts if c.type.value == "pagar")
+    num_receber = sum(1 for c in contracts if c.type.value == "receber")
 
     return {
-        "total_dividas_ativas": float(row["total_dividas"] or 0),
-        "total_a_receber_ativo": float(row["total_receber"] or 0),
-        "quantidade_dividas": int(row["num_dividas"] or 0),
-        "quantidade_receber": int(row["num_receber"] or 0),
+        "total_dividas_ativas": total_dividas,
+        "total_a_receber_ativo": total_receber,
+        "quantidade_dividas": num_dividas,
+        "quantidade_receber": num_receber,
     }
 
 
 def _get_metas(db: Session, usuario_id: str) -> list[dict]:
     """Returns active financial goals."""
-    rows = db.execute(
-        text("""
-            SELECT titulo, valor_alvo, valor_atual, percentual, prazo
-            FROM metas
-            WHERE usuario_id = :uid AND status = 'ativa'
-            ORDER BY percentual DESC
-            LIMIT 5
-        """),
-        {"uid": usuario_id},
-    ).mappings().all()
+    goals = db.execute(
+        select(Goal)
+        .where(Goal.user_id == usuario_id, Goal.status == GoalStatusEnum.ATIVA)
+        .order_by(Goal.deadline.asc())
+        .limit(5)
+    ).scalars().all()
 
     return [
         {
-            "titulo": r["titulo"],
-            "valor_alvo": float(r["valor_alvo"]),
-            "valor_atual": float(r["valor_atual"]),
-            "progresso_pct": float(r["percentual"]),
-            "prazo": str(r["prazo"]),
+            "titulo": g.title,
+            "valor_alvo": float(g.target_amount),
+            "valor_atual": float(g.current_amount),
+            "progresso_pct": g.progress_pct,
+            "prazo": str(g.deadline),
         }
-        for r in rows
+        for g in goals
     ]
 
 
 def _get_indicadores(db: Session) -> dict:
     """Returns all market indicators."""
-    rows = db.execute(
-        text("SELECT chave, valor, descricao FROM indicadores_mercado ORDER BY chave")
-    ).mappings().all()
+    indicators = db.execute(
+        select(MarketIndicator).order_by(MarketIndicator.key)
+    ).scalars().all()
 
-    # Return empty dict (graceful) if table doesn't exist yet
-    return {r["chave"]: {"valor": float(r["valor"]), "descricao": r["descricao"]} for r in rows}
+    return {
+        i.key: {"valor": float(i.value), "descricao": i.description}
+        for i in indicators
+    }
 
 
 def get_contexto_financeiro(db: Session, usuario_id: str) -> dict:
