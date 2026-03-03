@@ -1,8 +1,5 @@
-/**
- * Centralized API configuration.
- * Uses NEXT_PUBLIC_API_URL env var, falls back to the production backend URL.
- * Ensures HTTPS in production — never hardcodes ports or HTTP protocol.
- */
-export const API_BASE: string =
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://agilizagestaofinanceirabackend.up.railway.app/api";
+// Pega a URL limpa do Railway (sem o /api)
+const rawUrl = process.env.NEXT_PUBLIC_API_URL || "https://agilizagestaofinanceirabackend.up.railway.app";
+
+// Remove qualquer barra sobrando no final e força o /api, ficando à prova de balas
+export const API_BASE = `${rawUrl.replace(/\/$/, '')}/api`;

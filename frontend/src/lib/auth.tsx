@@ -50,10 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         const data = await res.json();
         const userData = {
-            usuario_id: data.usuario_id,
-            nome_exibicao: data.nome_exibicao,
-            tema: data.tema as "dark" | "light",
-            token: data.token,
+            usuario_id: data.id || data.usuario_id,
+            nome_exibicao: data.name || data.nome_exibicao || "CEO",
+            tema: data.tema || "dark",
+            token: data.access_token || data.token,
             email: data.email,
         };
         setUser(userData as AuthUser);
