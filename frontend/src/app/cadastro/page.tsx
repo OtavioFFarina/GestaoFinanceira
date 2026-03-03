@@ -47,8 +47,8 @@ export default function CadastroPage() {
 
         setSubmitting(true);
         try {
-            const apiBase = process.env.NEXT_PUBLIC_API_URL || "agilizagestaofinanceirabackend.up.railway.app";
-            const response = await fetch(`${apiBase}/auth/register`, {
+            const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://agilizagestaofinanceirabackend.up.railway.app";
+            const response = await fetch(`${apiBase}/api/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ nome, email, senha }),
