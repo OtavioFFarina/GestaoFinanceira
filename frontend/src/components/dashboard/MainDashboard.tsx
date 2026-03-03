@@ -22,6 +22,7 @@ import TransacoesModal from "@/components/modals/TransacoesModal";
 
 import AnimatedGreeting from "@/components/ui/AnimatedGreeting";
 import GlobalLoader from "@/components/ui/GlobalLoader";
+import Toast, { ToastType } from "@/components/ui/Toast";
 
 const C = {
     avocado: "var(--avocado)", avocadoLight: "var(--avocado-light)",
@@ -272,6 +273,13 @@ export default function MainDashboard() {
     const txModal = useModal();
     const txListModal = useModal(); // New: opens TransacoesModal
 
+    // Toast state
+    const [toast, setToast] = useState<{ msg: string; type: ToastType; visible: boolean }>({ msg: "", type: "success", visible: false });
+    const showToast = (msg: string, type: ToastType) => {
+        setToast({ msg, type, visible: true });
+        // hide is handled by the Toast component timeout
+    };
+
     const fmt = (v: number) =>
         v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -309,11 +317,17 @@ export default function MainDashboard() {
     return (
         <div className="min-h-screen font-sans antialiased" style={{ backgroundColor: C.bg, color: C.text }}>
             {/* ── Modals ── */}
+            <Toast
+                message={toast.msg}
+                type={toast.type}
+                visible={toast.visible}
+                onClose={() => setToast(prev => ({ ...prev, visible: false }))}
+            />
             <RegisterMonthModal
                 isOpen={monthModal.isOpen}
                 onClose={monthModal.close}
                 usuarioId={usuarioId}
-                onSuccess={refetch}
+                onSuccess={() => { refetch(); showToast("Mês registrado com sucesso!", "success"); }}
             />
             {data?.ciclo_id && (
                 <NewTransactionModal
@@ -322,7 +336,7 @@ export default function MainDashboard() {
                     cicloId={data.ciclo_id}
                     categorias={categorias}
                     usuarioId={usuarioId}
-                    onSuccess={refetch}
+                    onSuccess={() => { refetch(); showToast("Transação registrada!", "success"); }}
                 />
             )}
             {data?.ciclo_id && (
@@ -330,7 +344,11 @@ export default function MainDashboard() {
                     isOpen={txListModal.isOpen}
                     onClose={txListModal.close}
                     cicloId={data.ciclo_id}
-                    onSuccess={refetch}
+                    onSuccess={(action?: "edit" | "delete") => {
+                        refetch();
+                        if (action === "edit") showToast("Transação atualizada!", "success");
+                        if (action === "delete") showToast("Transação excluída!", "delete");
+                    }}
                     mesLabel={mesLabel}
                 />
             )}

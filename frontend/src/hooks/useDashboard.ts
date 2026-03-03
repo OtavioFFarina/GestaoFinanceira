@@ -49,7 +49,7 @@ export function useDashboard(usuarioId: string, ano: number, mes: number) {
             return;
         }
 
-        setLoading(true);
+        if (!data) setLoading(true); // Only show full loader if we have NO previous data
         setError(null);
 
         try {
@@ -73,9 +73,9 @@ export function useDashboard(usuarioId: string, ano: number, mes: number) {
         } catch (err) {
             setError(err instanceof Error ? err.message : "Erro desconhecido");
         } finally {
-            setLoading(false);
+            if (!data) setLoading(false); // If we just fetched initial data, turn off full loader
         }
-    }, [usuarioId, ano, mes]);
+    }, [usuarioId, ano, mes, data]);
 
     useEffect(() => {
         fetchDashboard();

@@ -30,7 +30,7 @@ interface Props {
     isOpen: boolean;
     onClose: () => void;
     cicloId: string;
-    onSuccess: () => void;
+    onSuccess: (action?: "edit" | "delete") => void;
     mesLabel: string;
 }
 
@@ -73,7 +73,7 @@ export default function TransacoesModal({ isOpen, onClose, cicloId, onSuccess, m
         setSaving(false);
         setEditingId(null);
         fetchTxs();
-        onSuccess();
+        onSuccess("edit");
     };
 
     const deleteTx = async (id: string) => {
@@ -81,7 +81,7 @@ export default function TransacoesModal({ isOpen, onClose, cicloId, onSuccess, m
         await fetch(`${API_BASE}/transacoes/${id}`, { method: "DELETE" });
         setDeletingId(null);
         fetchTxs();
-        onSuccess();
+        onSuccess("delete");
     };
 
     const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
