@@ -1,6 +1,6 @@
 """
 DashboardService — Business logic for the dashboard endpoint.
-Uses ORM models (MonthlyRecord, RecordCategory) instead of raw SQL views.
+Uses ORM aggregate sums from Transaction and Category instead of static old tables.
 """
 from datetime import date
 
@@ -8,7 +8,8 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.models.monthly_record import MonthlyRecord
-from app.models.record_category import RecordCategory
+from app.models.transaction import Transaction, TransactionTypeEnum
+from app.models.category import Category
 from app.schemas.dashboard import CategoriaAlocacao, DashboardResponse
 
 
@@ -23,7 +24,7 @@ class DashboardService:
     ) -> DashboardResponse:
         """
         Returns the full dashboard payload for a given user/month.
-        Uses ORM models instead of database views.
+        Calculates aggregates dynamically from the Transaction table.
         """
         # 1. Fetch the monthly record
         ref_month = date(ano, mes, 1)
@@ -37,42 +38,65 @@ class DashboardService:
         renda_total: float = float(record.total_received) if record else 0.0
         ciclo_id: str | None = record.id if record else None
 
-        # 2. Fetch per-category breakdown from RecordCategory
+        total_gasto = 0.0
         alocacoes: list[CategoriaAlocacao] = []
-        if record:
-            categories = db.execute(
-                select(RecordCategory).where(
-                    RecordCategory.record_id == record.id
-                )
-            ).scalars().all()
 
-            for cat in categories:
-                planned = float(cat.planned_amount)
-                actual = float(cat.actual_amount)
-                pct_planned = round(planned / renda_total * 100, 2) if renda_total > 0 else 0.0
+        if record:
+            # 2. Dynamically calculate category expenses via GROUP BY
+            stmt = (
+                select(
+                    Category.id,
+                    Category.name,
+                    Category.slug,
+                    Category.hex_color,
+                    func.sum(Transaction.amount).label("actual")
+                )
+                .select_from(Transaction)
+                .join(Category, Transaction.category_id == Category.id)
+                .where(
+                    Transaction.record_id == record.id,
+                    Transaction.type == TransactionTypeEnum.SAIDA
+                )
+                .group_by(Category.id)
+            )
+            
+            results = db.execute(stmt).all()
+
+            for r in results:
+                cat_id, name, slug, color, actual = r
+                actual = float(actual)
                 pct_actual = round(actual / renda_total * 100, 2) if renda_total > 0 else 0.0
 
                 alocacoes.append(
                     CategoriaAlocacao(
-                        categoria_id=cat.id,
-                        categoria=cat.category.value,
-                        slug=cat.category.value,
-                        cor_hex=None,
-                        valor_planejado=planned,
-                        percentual_planejado=pct_planned,
+                        categoria_id=cat_id,
+                        categoria=name,
+                        slug=slug,
+                        cor_hex=color,
+                        valor_planejado=0.0,
+                        percentual_planejado=0.0,
                         valor_realizado=actual,
                         percentual_realizado=pct_actual,
                     )
                 )
 
-        # Sort by actual amount descending
+            # 3. Handle standalone exact total dynamically from DB
+            total_gasto_row = db.execute(
+                select(func.sum(Transaction.amount))
+                .select_from(Transaction)
+                .where(
+                    Transaction.record_id == record.id,
+                    Transaction.type == TransactionTypeEnum.SAIDA
+                )
+            ).scalar_one_or_none()
+            total_gasto = float(total_gasto_row) if total_gasto_row else 0.0
+
+        # Sort allocations by actual amount descending
         alocacoes.sort(key=lambda a: a.valor_realizado, reverse=True)
 
-        # 3. Compute aggregates
-        total_gasto: float = sum(a.valor_realizado for a in alocacoes)
         saldo_livre: float = renda_total - total_gasto
         taxa_poupanca: float = (
-            round(saldo_livre / renda_total * 100, 2)
+            round((saldo_livre / renda_total) * 100, 2)
             if renda_total > 0
             else 0.0
         )
