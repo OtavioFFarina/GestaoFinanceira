@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL ||
-    (typeof window !== "undefined" ? `http://${window.location.hostname}:8000/api` : "http://localhost:8000/api");
+import { API_BASE } from "@/lib/apiConfig";
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 const C = {

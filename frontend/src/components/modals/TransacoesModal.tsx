@@ -4,17 +4,13 @@
  * TransacoesModal — shows all transactions for the current cycle with edit/delete.
  */
 import { useEffect, useRef, useState } from "react";
+import { API_BASE } from "@/lib/apiConfig";
 
 const C = {
     surface: "var(--surface)", elevated: "var(--elevated)", border: "var(--border)",
     muted: "var(--muted)", text: "var(--text)", textSecondary: "var(--text-secondary)",
     avocado: "var(--avocado)", danger: "var(--danger)", warning: "var(--warning)",
 };
-
-function getApiBase() {
-    if (typeof window === "undefined") return "http://localhost:8000/api";
-    return `http://${window.location.hostname}:8000/api`;
-}
 
 interface Tx {
     id: number;
@@ -49,7 +45,7 @@ export default function TransacoesModal({ isOpen, onClose, cicloId, onSuccess, m
 
     const fetchTxs = () => {
         setLoading(true);
-        fetch(`${getApiBase()}/transacoes/${cicloId}`)
+        fetch(`${API_BASE}/transacoes/${cicloId}`)
             .then(r => r.json()).then(setTxs).catch(console.error).finally(() => setLoading(false));
     };
 
@@ -65,7 +61,7 @@ export default function TransacoesModal({ isOpen, onClose, cicloId, onSuccess, m
     const saveEdit = async () => {
         if (!editingId) return;
         setSaving(true);
-        await fetch(`${getApiBase()}/transacoes/${editingId}`, {
+        await fetch(`${API_BASE}/transacoes/${editingId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -82,7 +78,7 @@ export default function TransacoesModal({ isOpen, onClose, cicloId, onSuccess, m
 
     const deleteTx = async (id: number) => {
         setDeletingId(id);
-        await fetch(`${getApiBase()}/transacoes/${id}`, { method: "DELETE" });
+        await fetch(`${API_BASE}/transacoes/${id}`, { method: "DELETE" });
         setDeletingId(null);
         fetchTxs();
         onSuccess();

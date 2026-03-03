@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import GlobalLoader from "@/components/ui/GlobalLoader";
 import AppNav from "@/components/layout/AppNav";
+import { API_BASE } from "@/lib/apiConfig";
 
 const C = {
     bg: "var(--bg)", surface: "var(--surface)", elevated: "var(--elevated)",
@@ -15,11 +16,6 @@ const MONTHS = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
-
-function getApiBase() {
-    if (typeof window === "undefined") return "http://localhost:8000/api";
-    return `http://${window.location.hostname}:8000/api`;
-}
 
 interface ReservaData {
     saldo_total: number;
@@ -44,7 +40,7 @@ export default function ReservaPage() {
 
     useEffect(() => {
         if (!user) return;
-        fetch(`${getApiBase()}/reserva/${user.usuario_id}`)
+        fetch(`${API_BASE}/reserva/${user.usuario_id}`)
             .then(r => r.json()).then(setReserva).catch(console.error).finally(() => setLoading(false));
     }, [user]);
 

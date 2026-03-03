@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import AppNav from "@/components/layout/AppNav";
 import GlobalLoader from "@/components/ui/GlobalLoader";
+import { API_BASE } from "@/lib/apiConfig";
 
 const C = {
     bg: "var(--bg)", surface: "var(--surface)", border: "var(--border)",
@@ -17,10 +18,6 @@ const MONTHS = [
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
-const API_BASE =
-    typeof window !== "undefined"
-        ? `http://${window.location.hostname}:8000/api`
-        : "http://localhost:8000/api";
 
 interface CicloResumo {
     ciclo_id: number;

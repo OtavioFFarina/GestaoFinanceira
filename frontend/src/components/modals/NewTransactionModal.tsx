@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Categoria } from "@/hooks/useDashboard";
-
-function getApiBase() {
-    if (typeof window === "undefined") return "http://localhost:8000/api";
-    return `http://${window.location.hostname}:8000/api`;
-}
+import { API_BASE } from "@/lib/apiConfig";
 
 const C = {
     surface: "var(--surface)", elevated: "var(--elevated)", border: "var(--border)",
@@ -73,7 +69,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
     useEffect(() => {
         if (isDividas && usuarioId) {
             setFetchingParcelas(true);
-            fetch(`${getApiBase()}/contratos/${usuarioId}/parcelas-pendentes`)
+            fetch(`${API_BASE}/contratos/${usuarioId}/parcelas-pendentes`)
                 .then(r => r.json())
                 .then((data: ParcelaPendente[]) => setParcelasPendentes(data))
                 .catch(() => setParcelasPendentes([]))
@@ -87,7 +83,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
     // Fetch metas when investimentos is selected
     useEffect(() => {
         if (isInvestimento && usuarioId) {
-            fetch(`${getApiBase()}/metas/${usuarioId}`)
+            fetch(`${API_BASE}/metas/${usuarioId}`)
                 .then(r => r.json())
                 .then((data: { id: number; titulo: string; status: string }[]) =>
                     setMetas(data.filter(m => m.status === "ativa"))
@@ -127,7 +123,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
 
         setLoading(true); setErro(null);
         try {
-            const res = await fetch(`${getApiBase()}/transacoes`, {
+            const res = await fetch(`${API_BASE}/transacoes`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -149,7 +145,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
 
             // Se uma dívida foi vinculada, dar baixa automaticamente na parcela
             if (isDividas && parcelaId) {
-                await fetch(`${getApiBase()}/parcelas/${parcelaId}/baixa`, { method: "PATCH" });
+                await fetch(`${API_BASE}/parcelas/${parcelaId}/baixa`, { method: "PATCH" });
             }
 
             onSuccess();

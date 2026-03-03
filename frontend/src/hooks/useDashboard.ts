@@ -1,11 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-
-// Dynamic base — works on localhost AND network IP (no hardcoded hostname)
-function getApiBase(): string {
-    if (typeof window === "undefined") return "http://localhost:8000/api";
-    return `http://${window.location.hostname}:8000/api`;
-}
+import { API_BASE } from "@/lib/apiConfig";
 
 // ─── Types (mirror backend schemas) ─────────────────────────────────────────
 export interface CategoriaAlocacao {
@@ -56,7 +51,6 @@ export function useDashboard(usuarioId: string, ano: number, mes: number) {
 
         setLoading(true);
         setError(null);
-        const API_BASE = getApiBase();
 
         try {
             const [dashRes, catRes] = await Promise.all([

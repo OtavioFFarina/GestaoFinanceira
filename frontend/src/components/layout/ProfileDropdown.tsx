@@ -4,16 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import type { AuthUser } from "@/lib/auth";
+import { API_BASE } from "@/lib/apiConfig";
 
 const C = {
     surface: "var(--surface)", elevated: "var(--elevated)", border: "var(--border)",
     muted: "var(--muted)", avocado: "var(--avocado)", text: "var(--text)", danger: "var(--danger)",
 };
 
-const API_BASE =
-    typeof window !== "undefined"
-        ? `http://${window.location.hostname}:8000/api`
-        : "http://localhost:8000/api";
 
 export default function ProfileDropdown() {
     const { user, logout, updateUser } = useAuth();

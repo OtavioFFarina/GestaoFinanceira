@@ -4,11 +4,7 @@
  * Token is stored in localStorage and sent on every API request.
  */
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-
-const API_BASE =
-    typeof window !== "undefined"
-        ? `http://${window.location.hostname}:8000/api`
-        : "http://localhost:8000/api";
+import { API_BASE } from "@/lib/apiConfig";
 
 export interface AuthUser {
     usuario_id: string;

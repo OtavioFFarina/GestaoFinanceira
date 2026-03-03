@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import GlobalLoader from "@/components/ui/GlobalLoader";
+import { API_BASE } from "@/lib/apiConfig";
 
 const C = {
     bg: "var(--bg)", surface: "var(--surface)", elevated: "var(--elevated)",
@@ -47,8 +48,7 @@ export default function CadastroPage() {
 
         setSubmitting(true);
         try {
-            const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://agilizagestaofinanceirabackend.up.railway.app";
-            const response = await fetch(`${apiBase}/api/auth/register`, {
+            const response = await fetch(`${API_BASE}/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ nome, email, senha }),

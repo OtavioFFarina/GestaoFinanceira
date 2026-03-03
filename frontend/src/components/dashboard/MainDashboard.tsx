@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/apiConfig";
 import {
     AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -89,10 +90,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 // ─── Chat Sidebar ─────────────────────────────────────────────────────────────
 interface ChatMsg { role: "user" | "assistant"; content: string; }
 
-const API_CHAT =
-    typeof window !== "undefined"
-        ? `http://${window.location.hostname}:8000/api/chat`
-        : "http://localhost:8000/api/chat";
+const API_CHAT = `${API_BASE}/chat`;
 
 /** Simple markdown renderer: **bold** and line breaks */
 function MsgContent({ text }: { text: string }) {
@@ -384,7 +382,7 @@ export default function MainDashboard() {
                     {/* Error state */}
                     {error && (
                         <div className="rounded-xl px-4 py-3 text-sm text-red-400 flex items-center gap-2" style={{ backgroundColor: "rgba(248,81,73,0.10)", border: "1px solid #F85149" }}>
-                            ⚠️ {error} — Verifique se o backend está rodando em <strong>localhost:8000</strong>
+                            ⚠️ {error} — Verifique se o backend está rodando corretamente
                         </div>
                     )}
 

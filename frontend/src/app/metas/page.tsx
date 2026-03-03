@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import AppNav from "@/components/layout/AppNav";
 import GlobalLoader from "@/components/ui/GlobalLoader";
+import { API_BASE } from "@/lib/apiConfig";
 
 const C = {
     bg: "var(--bg)", surface: "var(--surface)", elevated: "var(--elevated)",
@@ -12,10 +13,6 @@ const C = {
     avocadoLight: "var(--avocado-light)", danger: "var(--danger)", warning: "var(--warning)",
 };
 
-const API_BASE =
-    typeof window !== "undefined"
-        ? `http://${window.location.hostname}:8000/api`
-        : "http://localhost:8000/api";
 
 interface Meta {
     id: number;
