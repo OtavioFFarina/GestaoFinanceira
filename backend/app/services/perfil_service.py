@@ -14,7 +14,7 @@ class PerfilService:
             text("""
                 SELECT u.id AS usuario_id, u.nome, u.email,
                        p.nome_exibicao, p.foto_url, p.tema, p.meses_historico
-                FROM usuarios u
+                FROM users u
                 LEFT JOIN perfil_usuario p ON p.usuario_id = u.id
                 WHERE u.id = :uid
             """),

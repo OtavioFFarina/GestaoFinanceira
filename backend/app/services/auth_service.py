@@ -19,7 +19,7 @@ class AuthService:
     def register(self, db: Session, payload: RegisterRequest) -> None:
         # 1. Check if email already exists
         exists = db.execute(
-            text("SELECT id FROM usuarios WHERE email = :email"),
+            text("SELECT id FROM users WHERE email = :email"),
             {"email": payload.email}
         ).fetchone()
         
@@ -32,7 +32,7 @@ class AuthService:
         # 3. Create user
         db.execute(
             text("""
-                INSERT INTO usuarios (nome, email, senha_hash)
+                INSERT INTO users (nome, email, senha_hash)
                 VALUES (:nome, :email, :senha_hash)
             """),
             {
@@ -46,7 +46,7 @@ class AuthService:
     def login(self, db: Session, payload: LoginRequest) -> LoginResponse:
         # 1. Find user by email
         user = db.execute(
-            text("SELECT id, nome, email, senha_hash, ativo FROM usuarios WHERE email = :email"),
+            text("SELECT id, nome, email, senha_hash, ativo FROM users WHERE email = :email"),
             {"email": payload.email},
         ).mappings().first()
 

@@ -171,10 +171,10 @@ CREATE TABLE `transacoes` (
 -- --------------------------------------------------------
 
 --
--- Estrutura para tabela `usuarios`
+-- Estrutura para tabela `users`
 --
 
-CREATE TABLE `usuarios` (
+CREATE TABLE `users` (
   `id` char(36) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (uuid()),
   `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -185,10 +185,10 @@ CREATE TABLE `usuarios` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Usuários do sistema. Preparado para multi-tenant.';
 
 --
--- Despejando dados para a tabela `usuarios`
+-- Despejando dados para a tabela `users`
 --
 
-INSERT INTO `usuarios` (`id`, `nome`, `email`, `senha_hash`, `ativo`, `created_at`, `updated_at`) VALUES
+INSERT INTO `users` (`id`, `nome`, `email`, `senha_hash`, `ativo`, `created_at`, `updated_at`) VALUES
 ('00000000-0000-0000-0000-000000000001', 'Usuário Demo', 'demo@gestaofinanceira.app', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGkRtpHO9Fc.SQjKIWaHbMJm7JC', 1, '2026-03-01 03:59:12', '2026-03-01 03:59:12');
 
 -- --------------------------------------------------------
@@ -284,12 +284,12 @@ ALTER TABLE `transacoes`
   ADD KEY `idx_transacoes_ciclo_data` (`ciclo_id`,`data_transacao`);
 
 --
--- Índices de tabela `usuarios`
+-- Índices de tabela `users`
 --
-ALTER TABLE `usuarios`
+ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uq_usuarios_email` (`email`),
-  ADD KEY `idx_usuarios_email` (`email`);
+  ADD UNIQUE KEY `uq_users_email` (`email`),
+  ADD KEY `idx_users_email` (`email`);
 
 --
 -- AUTO_INCREMENT para tabelas despejadas
@@ -333,20 +333,20 @@ ALTER TABLE `transacoes`
 -- Restrições para tabelas `categorias`
 --
 ALTER TABLE `categorias`
-  ADD CONSTRAINT `fk_cat_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
+  ADD CONSTRAINT `fk_cat_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
 
 --
 -- Restrições para tabelas `ciclos_mensais`
 --
 ALTER TABLE `ciclos_mensais`
-  ADD CONSTRAINT `fk_ciclo_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
+  ADD CONSTRAINT `fk_ciclo_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
 
 --
 -- Restrições para tabelas `metas`
 --
 ALTER TABLE `metas`
   ADD CONSTRAINT `fk_meta_cat` FOREIGN KEY (`categoria_id`) REFERENCES `categorias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_meta_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
+  ADD CONSTRAINT `fk_meta_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
 
 --
 -- Restrições para tabelas `metas_alocacao`
@@ -359,13 +359,13 @@ ALTER TABLE `metas_alocacao`
 -- Restrições para tabelas `perfil_usuario`
 --
 ALTER TABLE `perfil_usuario`
-  ADD CONSTRAINT `fk_perfil_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
+  ADD CONSTRAINT `fk_perfil_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
 
 --
 -- Restrições para tabelas `sessoes`
 --
 ALTER TABLE `sessoes`
-  ADD CONSTRAINT `fk_sessao_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
+  ADD CONSTRAINT `fk_sessao_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT;
 
 --
 -- Restrições para tabelas `transacoes`

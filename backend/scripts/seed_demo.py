@@ -35,7 +35,7 @@ with engine.begin() as conn:
             updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             CONSTRAINT pk_perfil         PRIMARY KEY (usuario_id),
             CONSTRAINT fk_perfil_usuario FOREIGN KEY (usuario_id)
-                REFERENCES usuarios (id) ON DELETE CASCADE ON UPDATE RESTRICT
+                REFERENCES users (id) ON DELETE CASCADE ON UPDATE RESTRICT
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """))
 
@@ -49,7 +49,7 @@ with engine.begin() as conn:
             CONSTRAINT pk_sessoes         PRIMARY KEY (id),
             CONSTRAINT uq_sessao_token    UNIQUE (token),
             CONSTRAINT fk_sessao_usuario  FOREIGN KEY (usuario_id)
-                REFERENCES usuarios (id) ON DELETE CASCADE ON UPDATE RESTRICT
+                REFERENCES users (id) ON DELETE CASCADE ON UPDATE RESTRICT
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """))
 
@@ -69,7 +69,7 @@ with engine.begin() as conn:
             updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             CONSTRAINT pk_metas         PRIMARY KEY (id),
             CONSTRAINT fk_meta_usuario  FOREIGN KEY (usuario_id)
-                REFERENCES usuarios (id) ON DELETE CASCADE ON UPDATE RESTRICT,
+                REFERENCES users (id) ON DELETE CASCADE ON UPDATE RESTRICT,
             CONSTRAINT fk_meta_cat      FOREIGN KEY (categoria_id)
                 REFERENCES categorias (id) ON DELETE SET NULL ON UPDATE CASCADE,
             CONSTRAINT chk_meta_alvo    CHECK (valor_alvo > 0),
@@ -81,7 +81,7 @@ with engine.begin() as conn:
 
     # ── Upsert demo user ─────────────────────────────────────────────────────
     conn.execute(text("""
-        INSERT INTO usuarios (id, nome, email, senha_hash, ativo)
+        INSERT INTO users (id, nome, email, senha_hash, ativo)
         VALUES (:id, 'Otávio', 'otaviofranciscofarina13@gmail.com', :hash, 1)
         ON DUPLICATE KEY UPDATE senha_hash = VALUES(senha_hash), ativo = 1, email = VALUES(email), nome = VALUES(nome)
     """), {"id": DEMO_ID, "hash": senha_hash})
