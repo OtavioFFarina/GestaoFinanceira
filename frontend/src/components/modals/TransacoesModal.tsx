@@ -13,7 +13,7 @@ const C = {
 };
 
 interface Tx {
-    id: number;
+    id: string;
     descricao: string;
     valor: number;
     tipo: string;
@@ -29,7 +29,7 @@ interface Tx {
 interface Props {
     isOpen: boolean;
     onClose: () => void;
-    cicloId: number;
+    cicloId: string;
     onSuccess: () => void;
     mesLabel: string;
 }
@@ -37,10 +37,10 @@ interface Props {
 export default function TransacoesModal({ isOpen, onClose, cicloId, onSuccess, mesLabel }: Props) {
     const [txs, setTxs] = useState<Tx[]>([]);
     const [loading, setLoading] = useState(false);
-    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState({ descricao: "", valor: "", observacoes: "" });
     const [saving, setSaving] = useState(false);
-    const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
     const overlayRef = useRef<HTMLDivElement>(null);
 
     const fetchTxs = () => {
@@ -76,7 +76,7 @@ export default function TransacoesModal({ isOpen, onClose, cicloId, onSuccess, m
         onSuccess();
     };
 
-    const deleteTx = async (id: number) => {
+    const deleteTx = async (id: string) => {
         setDeletingId(id);
         await fetch(`${API_BASE}/transacoes/${id}`, { method: "DELETE" });
         setDeletingId(null);

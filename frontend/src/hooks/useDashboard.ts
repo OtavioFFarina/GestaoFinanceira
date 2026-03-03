@@ -4,7 +4,7 @@ import { API_BASE } from "@/lib/apiConfig";
 
 // ─── Types (mirror backend schemas) ─────────────────────────────────────────
 export interface CategoriaAlocacao {
-    categoria_id: number;
+    categoria_id: string;
     categoria: string;
     slug: string;
     cor_hex: string | null;
@@ -15,7 +15,7 @@ export interface CategoriaAlocacao {
 }
 
 export interface DashboardData {
-    ciclo_id: number | null;
+    ciclo_id: string | null;
     usuario_id: string;
     ano: number;
     mes: number;
@@ -27,7 +27,7 @@ export interface DashboardData {
 }
 
 export interface Categoria {
-    id: number;
+    id: string;
     nome: string;
     slug: string;
     cor_hex: string | null;

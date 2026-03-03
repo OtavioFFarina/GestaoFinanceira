@@ -12,14 +12,14 @@ const C = {
 interface Props {
     isOpen: boolean;
     onClose: () => void;
-    cicloId: number;
+    cicloId: string;
     categorias: Categoria[];
     usuarioId?: string;
     onSuccess: () => void;
 }
 
 interface ParcelaPendente {
-    id: number;
+    id: string;
     label: string;
     valor: number;
     data_vencimento: string;
@@ -27,23 +27,23 @@ interface ParcelaPendente {
 }
 
 // ID virtual para a categoria "Dívidas" — não precisa existir no banco para o modal funcionar
-const DIVIDAS_VIRTUAL_ID = -999;
+const DIVIDAS_VIRTUAL_ID = "virtual-dividas";
 
 export default function NewTransactionModal({ isOpen, onClose, cicloId, categorias, usuarioId, onSuccess }: Props) {
     const [descricao, setDescricao] = useState("");
     const [valor, setValor] = useState("");
-    const [categoriaId, setCategoriaId] = useState<number | "">(categorias[0]?.id ?? "");
+    const [categoriaId, setCategoriaId] = useState<string>(String(categorias[0]?.id ?? ""));
     const [tipo, setTipo] = useState<"saida" | "entrada">("saida");
     const [data, setData] = useState(new Date().toISOString().split("T")[0]);
     const [recorrente, setRecorrente] = useState(false);
     const [obs, setObs] = useState("");
-    const [metaId, setMetaId] = useState<number | "">("")
-    const [metas, setMetas] = useState<{ id: number; titulo: string }[]>([]);
+    const [metaId, setMetaId] = useState<string>("")
+    const [metas, setMetas] = useState<{ id: string; titulo: string }[]>([]);
     const [loading, setLoading] = useState(false);
     const [erro, setErro] = useState<string | null>(null);
 
     // Dívidas
-    const [parcelaId, setParcelaId] = useState<number | "">("");
+    const [parcelaId, setParcelaId] = useState<string>("");
     const [parcelasPendentes, setParcelasPendentes] = useState<ParcelaPendente[]>([]);
     const [fetchingParcelas, setFetchingParcelas] = useState(false);
 
@@ -85,7 +85,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
         if (isInvestimento && usuarioId) {
             fetch(`${API_BASE}/metas/${usuarioId}`)
                 .then(r => r.json())
-                .then((data: { id: number; titulo: string; status: string }[]) =>
+                .then((data: { id: string; titulo: string; status: string }[]) =>
                     setMetas(data.filter(m => m.status === "ativa"))
                 )
                 .catch(() => setMetas([]));
@@ -244,7 +244,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
                             <label className="text-xs font-medium mb-1.5 block" style={{ color: C.muted }}>Categoria</label>
                             <select
                                 value={categoriaId}
-                                onChange={(e) => setCategoriaId(Number(e.target.value))}
+                                onChange={(e) => setCategoriaId(e.target.value)}
                                 required
                                 className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
                                 style={{ backgroundColor: C.elevated, border: `1px solid ${C.border}` }}
@@ -280,7 +280,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
                             ) : (
                                 <select
                                     value={parcelaId}
-                                    onChange={e => setParcelaId(e.target.value ? Number(e.target.value) : "")}
+                                    onChange={e => setParcelaId(e.target.value)}
                                     className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
                                     style={{ backgroundColor: C.elevated, border: `1px solid ${C.border}` }}
                                 >
@@ -304,7 +304,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
                     {isInvestimento && (
                         <div>
                             <label className="text-xs font-medium mb-1.5 block" style={{ color: C.muted }}>🎯 Vincular à Meta (opcional)</label>
-                            <select value={metaId} onChange={e => setMetaId(e.target.value ? Number(e.target.value) : "")}
+                            <select value={metaId} onChange={e => setMetaId(e.target.value)}
                                 className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
                                 style={{ backgroundColor: C.elevated, border: `1px solid ${C.border}` }}>
                                 <option value="">Sem meta vinculada</option>
