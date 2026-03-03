@@ -24,10 +24,11 @@ const C = {
 export default function Toast({ message, type, visible, onClose }: ToastProps) {
     useEffect(() => {
         if (visible) {
-            const timer = setTimeout(() => onClose(), 2500); // Rápido: 2.5s
+            const timer = setTimeout(() => onClose(), 1500); // Rápido: 1.5s
             return () => clearTimeout(timer);
         }
-    }, [visible, onClose]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visible]);
 
     if (!visible) return null;
 
