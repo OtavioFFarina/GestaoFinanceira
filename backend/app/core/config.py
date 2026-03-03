@@ -6,21 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # ── MySQL Connection ─────────────────────────────────────────────────────
-    MYSQL_HOST: str = "localhost"
-    MYSQL_PORT: int = 3306
-    MYSQL_USER: str = "root"
-    MYSQL_PASSWORD: str = ""
-    MYSQL_DATABASE: str = "gestao_financeira"
-
-    # SQLAlchemy DSN (built from individual settings)
-    @property
-    def DATABASE_URL(self) -> str:
-        return (
-            f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}"
-            f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}"
-            f"?charset=utf8mb4"
-        )
+    # --- Database Connection ---
+    DATABASE_URL: str
 
     # ── API Config ───────────────────────────────────────────────────────────
     API_PREFIX: str = "/api"
