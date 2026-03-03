@@ -61,9 +61,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
         ? categorias  // already has Dívidas from DB
         : [...categorias, { id: DIVIDAS_VIRTUAL_ID, nome: "Dívidas", slug: "dividas", cor_hex: "#F85149", icone: "💸", tipo: "saida" }];
 
-    // When virtual Dívidas is selected, the actual categoria_id to send to the API
-    // is null (no DB category) — we'll still mark tipo=saida and record the transaction
-    const realCategoriaId = categoriaId === DIVIDAS_VIRTUAL_ID ? (dividasDbId ?? categorias.find(c => c.slug === "gastos-fixos")?.id ?? categorias[0]?.id) : categoriaId;
+    const realCategoriaId = categoriaId === DIVIDAS_VIRTUAL_ID ? (dividasDbId ?? categorias.find(c => c.slug === "gastos-fixos")?.id ?? categorias[0]?.id ?? "") : categoriaId;
 
     // Fetch parcelas-pendentes when modal opens (pre-load) or when isDividas toggles true
     useEffect(() => {
@@ -119,7 +117,7 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
         e.preventDefault();
         const valorNum = parseFloat(valor.replace(",", "."));
         if (isNaN(valorNum) || valorNum <= 0) { setErro("Informe um valor válido."); return; }
-        if (!realCategoriaId) { setErro("Selecione uma categoria."); return; }
+        if (!realCategoriaId || realCategoriaId === DIVIDAS_VIRTUAL_ID) { setErro("Selecione uma categoria válida."); return; }
 
         setLoading(true); setErro(null);
         try {
@@ -140,7 +138,8 @@ export default function NewTransactionModal({ isOpen, onClose, cicloId, categori
             });
             if (!res.ok) {
                 const body = await res.json().catch(() => ({}));
-                throw new Error(body?.detail ?? `Erro ${res.status}`);
+                const erroDetail = Array.isArray(body?.detail) ? body.detail[0].msg : (body?.detail ?? `Erro ${res.status}`);
+                throw new Error(erroDetail);
             }
 
             // Se uma dívida foi vinculada, dar baixa automaticamente na parcela
