@@ -369,7 +369,7 @@ export default function MainDashboard() {
                         <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 w-full md:w-auto hide-scrollbar">
                             {/* Refresh */}
                             <button
-                                onClick={refetch}
+                                onClick={() => refetch(true)}
                                 className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-opacity hover:opacity-70"
                                 style={{ backgroundColor: C.surface, border: `1px solid ${C.border}` }}
                                 title="Atualizar dados"

@@ -42,14 +42,14 @@ export function useDashboard(usuarioId: string, ano: number, mes: number) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchDashboard = useCallback(async () => {
+    const fetchDashboard = useCallback(async (forceLoad = false) => {
         // Guard: don't fetch if auth is not yet hydrated
         if (!usuarioId) {
             setLoading(false);
             return;
         }
 
-        if (!data) setLoading(true); // Only show full loader if we have NO previous data
+        if (!data || forceLoad) setLoading(true); // Only show full loader if NO previous data OR user clicked refresh
         setError(null);
 
         try {
@@ -73,7 +73,7 @@ export function useDashboard(usuarioId: string, ano: number, mes: number) {
         } catch (err) {
             setError(err instanceof Error ? err.message : "Erro desconhecido");
         } finally {
-            if (!data) setLoading(false); // If we just fetched initial data, turn off full loader
+            if (!data || forceLoad) setLoading(false);
         }
     }, [usuarioId, ano, mes, data]);
 
