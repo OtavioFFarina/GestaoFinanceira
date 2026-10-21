@@ -12,8 +12,10 @@ class Settings(BaseSettings):
     # ── API Config ───────────────────────────────────────────────────────────
     API_PREFIX: str = "/api"
     CORS_ORIGINS: list[str] = [
+        "https://agilizagestaofinanceira.up.railway.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:8080",
         "http://192.168.1.112:3000",   # IP da rede local
     ]
     DEBUG: bool = True

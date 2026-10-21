@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gestao-financeira-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: gestao_financeira
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - gestao_financeira_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gestao_financeira"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  gestao_financeira_pgdata:

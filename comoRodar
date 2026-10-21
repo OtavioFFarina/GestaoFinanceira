@@ -1,20 +1,21 @@
-Como rodar:
+Como rodar o projeto
 
-BACK-END:
+1. Na primeira vez, garanta permissao de execucao:
+	cd /home/ofx/ProjetosDev/GestaoFinanceira && chmod +x start_all.sh stop_all.sh
 
-# Acessar o diretório do backend
-cd /var/www/html/GestaoFinanceira/backend
+2. Suba tudo com um unico comando:
+	cd /home/ofx/ProjetosDev/GestaoFinanceira && ./start_all.sh
 
-# Ativar o ambiente venv (caso não esteja ativo)
-source /var/www/html/GestaoFinanceira/.venv/bin/activate
+3. Apos subir, acesse:
+	- Frontend: http://127.0.0.1:3001
+	- Backend: a URL exibida no final do `./start_all.sh` (a porta do backend e escolhida automaticamente e gravada em `.run/backend.port`)
 
-# Subir o servidor do backend (0.0.0.0 aceita localhost E acesso pela rede)
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+4. Para parar backend e frontend:
+	cd /home/ofx/ProjetosDev/GestaoFinanceira && ./stop_all.sh
 
-FRONT-END:
+5. O script tambem sobe o PostgreSQL via Docker Compose.
 
-# Acessar o diretório do frontend
-cd /var/www/html/GestaoFinanceira/frontend
-
-# Subir o servidor do frontend
-npm run dev
+Observacoes:
+- O backend escolhe automaticamente uma porta livre entre 8001 e 8015 para evitar conflito com outros projetos já abertos.
+- Nao use "start_all.sh" sem "./". O correto e "./start_all.sh" (ou "bash start_all.sh").
+- O mesmo vale para "./stop_all.sh".
